@@ -299,9 +299,9 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         cumulativeWidth += tabWidth;
       }
 
-      // If current visible tabs don't fit, remove from the start until they fit
+      // If current visible tabs don't fit, remove from the end (right side) until they fit
       while (cumulativeWidth > availableWidth && this.visibleTabIndices.length > 1) {
-        const removedIndex = this.visibleTabIndices.shift()!;
+        const removedIndex = this.visibleTabIndices.pop()!;
         const removedTab = allTabs.find(t => t.index === removedIndex);
         if (removedTab) {
           const removedWidth = removedTab.element.getBoundingClientRect().width;
@@ -365,7 +365,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
 
   /**
    * Make a tab visible when selected from dropdown
-   * This will show the selected tab and hide the first visible tab to maintain space
+   * Removes the rightmost visible tab and adds the selected tab to the right
    */
   makeTabVisible(selectedIndex: number): void {
     // If the tab is already visible, just navigate
@@ -374,13 +374,13 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Remove first tab and add selected tab
-    // This ensures the selected tab is always added
+    // Remove the last (rightmost) visible tab and add the selected tab to the right
+    // This maintains left-to-right order and keeps leftmost tabs stable
     if (this.visibleTabIndices.length > 0) {
-      this.visibleTabIndices.shift();
+      this.visibleTabIndices.pop(); // Remove from right side instead of left
     }
 
-    // Add the selected tab to the end
+    // Add the selected tab to the right
     this.visibleTabIndices.push(selectedIndex);
 
     // Reset scroll position before re-detection
