@@ -268,54 +268,52 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         el.style.pointerEvents = 'auto';
         el.style.visibility = 'visible';
       });
-    }
 
-    // Calculate which tabs fit
-    let cumulativeWidth = 0;
-    let fittingTabCount = 0;
+      // Initial calculation: measure tabs in natural order
+      let cumulativeWidth = 0;
+      let fittingTabCount = 0;
 
-    for (let i = 0; i < tabElements.length; i++) {
-      const tabWidth = tabElements[i].getBoundingClientRect().width;
-      if (cumulativeWidth + tabWidth <= availableWidth) {
-        cumulativeWidth += tabWidth;
-        fittingTabCount++;
-      } else {
-        break;
-      }
-    }
-
-    // Determine max visible tabs
-    const newMaxVisibleTabs = Math.max(1, fittingTabCount);
-    const hasOverflow = allTabs.length > newMaxVisibleTabs;
-
-    // Initialize visible tab indices on first run only
-    if (this.visibleTabIndices.length === 0) {
-      this.visibleTabIndices = allTabs.slice(0, newMaxVisibleTabs).map(t => t.index);
-      this.maxVisibleTabs = newMaxVisibleTabs;
-    }
-    // If max visible tabs changed, adjust visible indices without resetting
-    else if (this.maxVisibleTabs !== newMaxVisibleTabs) {
-      const oldMax = this.maxVisibleTabs;
-      this.maxVisibleTabs = newMaxVisibleTabs;
-
-      // If we need to show fewer tabs, trim from the end
-      if (newMaxVisibleTabs < oldMax && this.visibleTabIndices.length > newMaxVisibleTabs) {
-        this.visibleTabIndices = this.visibleTabIndices.slice(0, newMaxVisibleTabs);
-      }
-      // If we can show more tabs, add from the hidden ones
-      else if (newMaxVisibleTabs > oldMax) {
-        const hiddenIndices = allTabs
-          .map(t => t.index)
-          .filter(idx => !this.visibleTabIndices.includes(idx));
-
-        const toAdd = Math.min(newMaxVisibleTabs - this.visibleTabIndices.length, hiddenIndices.length);
-        for (let i = 0; i < toAdd; i++) {
-          this.visibleTabIndices.push(hiddenIndices[i]);
+      for (let i = 0; i < tabElements.length; i++) {
+        const tabWidth = tabElements[i].getBoundingClientRect().width;
+        if (cumulativeWidth + tabWidth <= availableWidth) {
+          cumulativeWidth += tabWidth;
+          fittingTabCount++;
+        } else {
+          break;
         }
       }
+
+      this.maxVisibleTabs = Math.max(1, fittingTabCount);
+      this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
+      this.isInitialized = true;
+    } else {
+      // After initialization: validate current visible tabs fit in available space
+      // Measure width of currently visible tabs
+      let cumulativeWidth = 0;
+      const visibleTabElements = this.visibleTabIndices
+        .map(idx => allTabs.find(t => t.index === idx))
+        .filter(t => t !== undefined) as TabInfo[];
+
+      for (const tabInfo of visibleTabElements) {
+        const tabWidth = tabInfo.element.getBoundingClientRect().width;
+        cumulativeWidth += tabWidth;
+      }
+
+      // If current visible tabs don't fit, remove from the start until they fit
+      while (cumulativeWidth > availableWidth && this.visibleTabIndices.length > 1) {
+        const removedIndex = this.visibleTabIndices.shift()!;
+        const removedTab = allTabs.find(t => t.index === removedIndex);
+        if (removedTab) {
+          const removedWidth = removedTab.element.getBoundingClientRect().width;
+          cumulativeWidth -= removedWidth;
+        }
+      }
+
+      // Update maxVisibleTabs to match current visible count
+      this.maxVisibleTabs = Math.max(1, this.visibleTabIndices.length);
     }
 
-    this.isInitialized = true;
+    const hasOverflow = allTabs.length > this.maxVisibleTabs;
 
     // Split tabs into visible and hidden based on indices
     const visibleTabs: TabInfo[] = [];
@@ -376,19 +374,19 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Always maintain exactly maxVisibleTabs visible
-    // Remove the first tab if we're at capacity
-    while (this.visibleTabIndices.length >= this.maxVisibleTabs) {
+    // Remove first tab and add selected tab
+    // This ensures the selected tab is always added
+    if (this.visibleTabIndices.length > 0) {
       this.visibleTabIndices.shift();
     }
 
-    // Add the selected tab to visible tabs
+    // Add the selected tab to the end
     this.visibleTabIndices.push(selectedIndex);
 
     // Reset scroll position before re-detection
     this.resetScrollPosition();
 
-    // Trigger re-detection to apply visibility changes
+    // Trigger re-detection to apply visibility changes and validate fit
     const state = this.detectOverflow();
     this.updateState(state);
 
