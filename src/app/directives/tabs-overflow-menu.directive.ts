@@ -47,21 +47,21 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     // React to overflow changes using Angular signals
     effect(() => {
       const hasOverflow = this.tabsOverflow.hasOverflow();
-      const allTabs = this.tabsOverflow.allTabs();
+      const hiddenTabs = this.tabsOverflow.hiddenTabs();
       const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
 
       console.log('TabsOverflowMenuDirective effect triggered:', {
         hasOverflow,
-        allTabsCount: allTabs.length,
+        hiddenTabsCount: hiddenTabs.length,
         hasTabHeader: !!tabHeaderElement,
       });
 
-      if (hasOverflow && allTabs.length > 0 && tabHeaderElement) {
-        console.log('Showing menu with tabs:', allTabs);
-        this.showMenu(allTabs);
+      if (hasOverflow && hiddenTabs.length > 0 && tabHeaderElement) {
+        console.log('Showing menu with hidden tabs:', hiddenTabs);
+        this.showMenu(hiddenTabs);
         this.hidePaginationButtons();
       } else {
-        console.log('Hiding menu (no overflow or no tabs or no header)');
+        console.log('Hiding menu (no overflow or no hidden tabs or no header)');
         this.hideMenu();
         this.showPaginationButtons();
       }
@@ -115,7 +115,8 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     this.menuComponentRef.instance.tabSelected
       .pipe(takeUntil(this.destroy$))
       .subscribe((index: number) => {
-        this.tabsOverflow.navigateToTab(index);
+        console.log('Tab selected from dropdown:', index);
+        this.tabsOverflow.makeTabVisible(index);
       });
 
     // Attach to application

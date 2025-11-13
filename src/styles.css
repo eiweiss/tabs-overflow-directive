@@ -5,3 +5,15 @@ body {
   margin: 0;
   padding: 0;
 }
+
+/* Hide pagination buttons when tabs-overflow directive is present */
+[appTabsOverflowMenu] .mat-mdc-tab-header-pagination,
+[appTabsOverflowMenu] .mat-tab-header-pagination {
+  display: none !important;
+}
+
+/* Prevent tab header from paginating/scrolling */
+[appTabsOverflowMenu] .mat-mdc-tab-list,
+[appTabsOverflowMenu] .mat-tab-list {
+  overflow: hidden !important;
+}

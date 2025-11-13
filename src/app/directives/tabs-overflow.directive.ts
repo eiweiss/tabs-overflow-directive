@@ -43,6 +43,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   readonly hiddenTabs = signal<TabInfo[]>([]);
 
   private _tabHeaderElement: HTMLElement | null = null;
+  private visibleTabIndices: number[] = [];
+  private maxVisibleTabs = 0;
 
   /**
    * Public getter for tab header element
@@ -205,54 +207,70 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       };
     }
 
-    // Check for pagination buttons (indicates overflow)
-    const paginationBefore = this._tabHeaderElement.querySelector(
-      '.mat-mdc-tab-header-pagination-before:not(.mat-mdc-tab-header-pagination-disabled)'
-    );
-    const paginationAfter = this._tabHeaderElement.querySelector(
-      '.mat-mdc-tab-header-pagination-after:not(.mat-mdc-tab-header-pagination-disabled)'
-    );
-    const hasPagination = !!(paginationBefore || paginationAfter);
+    // Calculate how many tabs can fit in the available space
+    const containerWidth = tabListContainer.getBoundingClientRect().width;
+    const menuButtonWidth = 48; // Reserve space for overflow menu button
+    const availableWidth = containerWidth - menuButtonWidth;
 
-    console.log('Pagination before:', paginationBefore);
-    console.log('Pagination after:', paginationAfter);
-    console.log('Has pagination (overflow):', hasPagination);
-
-    const containerRect = tabListContainer.getBoundingClientRect();
     const allTabs: TabInfo[] = [];
     const visibleTabs: TabInfo[] = [];
     const hiddenTabs: TabInfo[] = [];
 
+    let cumulativeWidth = 0;
+    let fittingTabCount = 0;
+
     tabElements.forEach((element, index) => {
-      const rect = element.getBoundingClientRect();
       const labelElement = element.querySelector(
         '.mat-mdc-tab-link-content, .mat-tab-label-content'
       );
       const label = labelElement?.textContent?.trim() || `Tab ${index + 1}`;
-
       const tabInfo: TabInfo = { label, index, element };
       allTabs.push(tabInfo);
 
-      // Check if tab is visible within container bounds
-      const isVisible =
-        rect.left >= containerRect.left - 10 &&
-        rect.right <= containerRect.right + 10;
+      const tabWidth = element.getBoundingClientRect().width;
 
-      if (hasPagination) {
-        // We have overflow, check visibility
-        if (isVisible) {
-          visibleTabs.push(tabInfo);
-        } else {
-          hiddenTabs.push(tabInfo);
-        }
-      } else {
-        // No overflow, all tabs are visible
+      // Calculate if this tab would fit
+      if (cumulativeWidth + tabWidth <= availableWidth) {
+        cumulativeWidth += tabWidth;
+        fittingTabCount++;
+      }
+    });
+
+    this.maxVisibleTabs = Math.max(1, fittingTabCount); // At least 1 tab visible
+    const hasOverflow = allTabs.length > this.maxVisibleTabs;
+
+    console.log('Calculated fitting tabs:', {
+      containerWidth,
+      availableWidth,
+      maxVisibleTabs: this.maxVisibleTabs,
+      totalTabs: allTabs.length,
+      hasOverflow
+    });
+
+    // Initialize visible tab indices if not set
+    if (this.visibleTabIndices.length === 0) {
+      this.visibleTabIndices = allTabs
+        .slice(0, this.maxVisibleTabs)
+        .map(t => t.index);
+    }
+
+    // Apply visibility based on visibleTabIndices
+    allTabs.forEach(tabInfo => {
+      const shouldBeVisible = this.visibleTabIndices.includes(tabInfo.index);
+
+      if (shouldBeVisible) {
         visibleTabs.push(tabInfo);
+        tabInfo.element.style.display = '';
+        tabInfo.element.classList.remove('tab-overflow-hidden');
+      } else {
+        hiddenTabs.push(tabInfo);
+        tabInfo.element.style.display = 'none';
+        tabInfo.element.classList.add('tab-overflow-hidden');
       }
     });
 
     const result = {
-      hasOverflow: hasPagination,
+      hasOverflow,
       allTabs,
       visibleTabs,
       hiddenTabs,
@@ -263,9 +281,45 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       totalTabs: result.allTabs.length,
       visibleCount: result.visibleTabs.length,
       hiddenCount: result.hiddenTabs.length,
+      visibleIndices: this.visibleTabIndices,
     });
 
     return result;
+  }
+
+  /**
+   * Make a tab visible when selected from dropdown
+   * This will show the selected tab and hide the first visible tab to maintain space
+   */
+  makeTabVisible(selectedIndex: number): void {
+    console.log('makeTabVisible called with index:', selectedIndex);
+
+    // If the tab is already visible, just navigate
+    if (this.visibleTabIndices.includes(selectedIndex)) {
+      console.log('Tab already visible, just navigating');
+      this.navigateToTab(selectedIndex);
+      return;
+    }
+
+    // Remove the first visible tab and add the new one at the end
+    if (this.visibleTabIndices.length >= this.maxVisibleTabs) {
+      this.visibleTabIndices.shift(); // Remove first (oldest) visible tab
+    }
+
+    // Add the selected tab to visible tabs
+    this.visibleTabIndices.push(selectedIndex);
+
+    console.log('Updated visible tab indices:', this.visibleTabIndices);
+
+    // Trigger re-detection to apply visibility changes
+    const state = this.detectOverflow();
+    this.hasOverflow.set(state.hasOverflow);
+    this.allTabs.set(state.allTabs);
+    this.visibleTabs.set(state.visibleTabs);
+    this.hiddenTabs.set(state.hiddenTabs);
+
+    // Navigate to the selected tab
+    this.navigateToTab(selectedIndex);
   }
 
   /**
