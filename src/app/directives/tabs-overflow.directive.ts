@@ -207,9 +207,14 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       };
     }
 
+    // First, ensure all tabs are visible for measurement
+    tabElements.forEach(element => {
+      element.style.display = '';
+    });
+
     // Calculate how many tabs can fit in the available space
     const containerWidth = tabListContainer.getBoundingClientRect().width;
-    const menuButtonWidth = 48; // Reserve space for overflow menu button
+    const menuButtonWidth = 56; // Reserve space for overflow menu button
     const availableWidth = containerWidth - menuButtonWidth;
 
     const allTabs: TabInfo[] = [];
@@ -244,14 +249,16 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       availableWidth,
       maxVisibleTabs: this.maxVisibleTabs,
       totalTabs: allTabs.length,
-      hasOverflow
+      hasOverflow,
+      tabWidths: tabElements.map(el => el.getBoundingClientRect().width)
     });
 
-    // Initialize visible tab indices if not set
-    if (this.visibleTabIndices.length === 0) {
+    // Initialize visible tab indices if not set or if we need to recalculate
+    if (this.visibleTabIndices.length === 0 || this.visibleTabIndices.length > this.maxVisibleTabs) {
       this.visibleTabIndices = allTabs
         .slice(0, this.maxVisibleTabs)
         .map(t => t.index);
+      console.log('Initialized visible tab indices:', this.visibleTabIndices);
     }
 
     // Apply visibility based on visibleTabIndices
@@ -261,10 +268,12 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       if (shouldBeVisible) {
         visibleTabs.push(tabInfo);
         tabInfo.element.style.display = '';
+        tabInfo.element.style.pointerEvents = '';
         tabInfo.element.classList.remove('tab-overflow-hidden');
       } else {
         hiddenTabs.push(tabInfo);
         tabInfo.element.style.display = 'none';
+        tabInfo.element.style.pointerEvents = 'none';
         tabInfo.element.classList.add('tab-overflow-hidden');
       }
     });
