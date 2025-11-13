@@ -19,7 +19,14 @@ const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
   { path: 'home', component: HomeComponent },
   { path: 'search', component: SearchComponent },
-  { path: 'others', component: OthersComponent }
+  { path: 'others', component: OthersComponent },
+  { path: 'dashboard', component: OthersComponent },
+  { path: 'analytics', component: OthersComponent },
+  { path: 'reports', component: OthersComponent },
+  { path: 'settings', component: OthersComponent },
+  { path: 'profile', component: OthersComponent },
+  { path: 'notifications', component: OthersComponent },
+  { path: 'messages', component: OthersComponent }
 ];
 
 @NgModule({
