@@ -287,7 +287,15 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
       this.isInitialized = true;
     } else {
-      // After initialization: validate current visible tabs fit in available space
+      // After initialization: validate current visible tabs and check if we can fit more/less
+
+      // Temporarily make all tabs visible for accurate measurement
+      tabElements.forEach(el => {
+        el.style.display = '';
+        el.style.pointerEvents = 'auto';
+        el.style.visibility = 'visible';
+      });
+
       // Measure width of currently visible tabs
       let cumulativeWidth = 0;
       const visibleTabElements = this.visibleTabIndices
@@ -299,7 +307,34 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         cumulativeWidth += tabWidth;
       }
 
+      // Check if we can fit more tabs (when resizing larger)
+      const hiddenTabIndices = allTabs
+        .map(t => t.index)
+        .filter(idx => !this.visibleTabIndices.includes(idx));
+
+      for (const hiddenIdx of hiddenTabIndices) {
+        const hiddenTab = allTabs.find(t => t.index === hiddenIdx);
+        if (hiddenTab) {
+          const hiddenTabWidth = hiddenTab.element.getBoundingClientRect().width;
+          if (cumulativeWidth + hiddenTabWidth <= availableWidth) {
+            // This tab fits, add it
+            this.visibleTabIndices.push(hiddenIdx);
+            cumulativeWidth += hiddenTabWidth;
+          }
+        }
+      }
+
       // If current visible tabs don't fit, remove from the end (right side) until they fit
+      // Recalculate in case we added tabs
+      cumulativeWidth = 0;
+      const updatedVisibleElements = this.visibleTabIndices
+        .map(idx => allTabs.find(t => t.index === idx))
+        .filter(t => t !== undefined) as TabInfo[];
+
+      for (const tabInfo of updatedVisibleElements) {
+        cumulativeWidth += tabInfo.element.getBoundingClientRect().width;
+      }
+
       while (cumulativeWidth > availableWidth && this.visibleTabIndices.length > 1) {
         const removedIndex = this.visibleTabIndices.pop()!;
         const removedTab = allTabs.find(t => t.index === removedIndex);
