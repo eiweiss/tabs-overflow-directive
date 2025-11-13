@@ -200,63 +200,79 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       };
     }
 
-    // First, ensure all tabs are visible for measurement
-    tabElements.forEach(element => {
-      element.style.display = '';
-    });
-
-    // Calculate how many tabs can fit in the available space
-    const containerWidth = tabListContainer.getBoundingClientRect().width;
-    const menuButtonWidth = 56; // Reserve space for overflow menu button
-    const availableWidth = containerWidth - menuButtonWidth;
-
-    const allTabs: TabInfo[] = [];
-    const visibleTabs: TabInfo[] = [];
-    const hiddenTabs: TabInfo[] = [];
-
-    let cumulativeWidth = 0;
-    let fittingTabCount = 0;
-
-    tabElements.forEach((element, index) => {
+    // Build tab info array
+    const allTabs: TabInfo[] = tabElements.map((element, index) => {
       const labelElement = element.querySelector(
         '.mat-mdc-tab-link-content, .mat-tab-label-content'
       );
       const label = labelElement?.textContent?.trim() || `Tab ${index + 1}`;
-      const tabInfo: TabInfo = { label, index, element };
-      allTabs.push(tabInfo);
+      return { label, index, element };
+    });
 
-      const tabWidth = element.getBoundingClientRect().width;
+    // Check if we have existing overflow state
+    const currentlyHasOverflow = this.visibleTabIndices.length > 0 &&
+                                  this.visibleTabIndices.length < allTabs.length;
 
-      // Calculate if this tab would fit
+    // Calculate container width accounting for menu if already present
+    const containerWidth = tabListContainer.getBoundingClientRect().width;
+    const menuButtonWidth = currentlyHasOverflow ? 0 : 56; // Menu will be added if overflow detected
+    const availableWidth = containerWidth - menuButtonWidth;
+
+    // Temporarily make all tabs visible for accurate measurement
+    const originalDisplay = tabElements.map(el => el.style.display);
+    tabElements.forEach(el => {
+      el.style.display = '';
+      el.style.pointerEvents = '';
+    });
+
+    // Calculate which tabs fit
+    let cumulativeWidth = 0;
+    let fittingTabCount = 0;
+
+    for (let i = 0; i < tabElements.length; i++) {
+      const tabWidth = tabElements[i].getBoundingClientRect().width;
       if (cumulativeWidth + tabWidth <= availableWidth) {
         cumulativeWidth += tabWidth;
         fittingTabCount++;
+      } else {
+        break;
       }
-    });
-
-    this.maxVisibleTabs = Math.max(1, fittingTabCount); // At least 1 tab visible
-    const hasOverflow = allTabs.length > this.maxVisibleTabs;
-
-    // Initialize visible tab indices if not set or if we need to recalculate
-    if (this.visibleTabIndices.length === 0 || this.visibleTabIndices.length > this.maxVisibleTabs) {
-      this.visibleTabIndices = allTabs
-        .slice(0, this.maxVisibleTabs)
-        .map(t => t.index);
     }
 
-    // Apply visibility based on visibleTabIndices
-    allTabs.forEach(tabInfo => {
+    // Determine max visible tabs
+    const newMaxVisibleTabs = Math.max(1, fittingTabCount);
+    const hasOverflow = allTabs.length > newMaxVisibleTabs;
+
+    // Update max visible tabs if changed
+    if (this.maxVisibleTabs !== newMaxVisibleTabs) {
+      this.maxVisibleTabs = newMaxVisibleTabs;
+      // Reset visible indices when max changes
+      this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
+    }
+
+    // Initialize visible tab indices on first run
+    if (this.visibleTabIndices.length === 0) {
+      this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
+    }
+
+    // Split tabs into visible and hidden based on indices
+    const visibleTabs: TabInfo[] = [];
+    const hiddenTabs: TabInfo[] = [];
+
+    allTabs.forEach((tabInfo) => {
       const shouldBeVisible = this.visibleTabIndices.includes(tabInfo.index);
 
-      if (shouldBeVisible) {
+      if (shouldBeVisible && visibleTabs.length < this.maxVisibleTabs) {
         visibleTabs.push(tabInfo);
         tabInfo.element.style.display = '';
-        tabInfo.element.style.pointerEvents = '';
+        tabInfo.element.style.pointerEvents = 'auto';
+        tabInfo.element.style.visibility = 'visible';
         tabInfo.element.classList.remove('tab-overflow-hidden');
       } else {
         hiddenTabs.push(tabInfo);
         tabInfo.element.style.display = 'none';
         tabInfo.element.style.pointerEvents = 'none';
+        tabInfo.element.style.visibility = 'hidden';
         tabInfo.element.classList.add('tab-overflow-hidden');
       }
     });

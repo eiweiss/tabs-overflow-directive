@@ -49,18 +49,20 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
       const hiddenTabs = this.tabsOverflow.hiddenTabs();
       const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
 
-      if (hasOverflow && hiddenTabs.length > 0 && tabHeaderElement) {
+      // Only update if we have tab header element
+      if (!tabHeaderElement) return;
+
+      // Show/hide menu based on overflow state
+      if (hasOverflow && hiddenTabs.length > 0) {
         this.showMenu(hiddenTabs);
-        this.hidePaginationButtons();
       } else {
         this.hideMenu();
-        this.showPaginationButtons();
       }
     });
   }
 
   ngAfterViewInit(): void {
-    // No need to find tab header element anymore - using shared one from TabsOverflowDirective
+    // Hide pagination buttons once on initialization (handled by CSS)
   }
 
   ngOnDestroy(): void {
@@ -135,27 +137,5 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
       this.menuComponentRef.destroy();
       this.menuComponentRef = null;
     }
-  }
-
-  private hidePaginationButtons(): void {
-    const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
-    if (!tabHeaderElement) return;
-    const buttons = tabHeaderElement.querySelectorAll(
-      '.mat-mdc-tab-header-pagination, .mat-tab-header-pagination'
-    );
-    buttons.forEach((btn) => {
-      this.renderer.setStyle(btn, 'display', 'none');
-    });
-  }
-
-  private showPaginationButtons(): void {
-    const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
-    if (!tabHeaderElement) return;
-    const buttons = tabHeaderElement.querySelectorAll(
-      '.mat-mdc-tab-header-pagination, .mat-tab-header-pagination'
-    );
-    buttons.forEach((btn) => {
-      this.renderer.removeStyle(btn, 'display');
-    });
   }
 }
