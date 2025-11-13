@@ -43,25 +43,16 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   private menuComponentRef: ComponentRef<OverflowMenuComponent> | null = null;
 
   constructor() {
-    console.log('TabsOverflowMenuDirective constructor called');
     // React to overflow changes using Angular signals
     effect(() => {
       const hasOverflow = this.tabsOverflow.hasOverflow();
       const hiddenTabs = this.tabsOverflow.hiddenTabs();
       const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
 
-      console.log('TabsOverflowMenuDirective effect triggered:', {
-        hasOverflow,
-        hiddenTabsCount: hiddenTabs.length,
-        hasTabHeader: !!tabHeaderElement,
-      });
-
       if (hasOverflow && hiddenTabs.length > 0 && tabHeaderElement) {
-        console.log('Showing menu with hidden tabs:', hiddenTabs);
         this.showMenu(hiddenTabs);
         this.hidePaginationButtons();
       } else {
-        console.log('Hiding menu (no overflow or no hidden tabs or no header)');
         this.hideMenu();
         this.showPaginationButtons();
       }
@@ -79,30 +70,22 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   }
 
   private showMenu(tabs: Array<{ label: string; index: number }>): void {
-    console.log('showMenu called with tabs:', tabs.length);
     if (!this.menuComponentRef) {
-      console.log('Creating new menu');
       this.createMenu();
     }
 
     if (this.menuComponentRef) {
-      console.log('Updating menu tabs');
       this.menuComponentRef.instance.updateTabs(tabs, []);
-    } else {
-      console.warn('Menu component ref is null after createMenu()');
     }
   }
 
   private hideMenu(): void {
-    console.log('hideMenu called');
     this.destroyMenu();
   }
 
   private createMenu(): void {
     const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
-    console.log('createMenu called, tabHeaderElement:', tabHeaderElement);
     if (!tabHeaderElement) {
-      console.warn('Cannot create menu: tabHeaderElement not found yet');
       return;
     }
 
@@ -115,7 +98,6 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     this.menuComponentRef.instance.tabSelected
       .pipe(takeUntil(this.destroy$))
       .subscribe((index: number) => {
-        console.log('Tab selected from dropdown:', index);
         this.tabsOverflow.makeTabVisible(index);
       });
 
@@ -145,8 +127,6 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     } else {
       this.renderer.appendChild(tabHeaderElement, menuElement);
     }
-
-    console.log('Menu component created and inserted into DOM');
   }
 
   private destroyMenu(): void {
@@ -166,7 +146,6 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     buttons.forEach((btn) => {
       this.renderer.setStyle(btn, 'display', 'none');
     });
-    console.log('Pagination buttons hidden');
   }
 
   private showPaginationButtons(): void {
@@ -178,6 +157,5 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     buttons.forEach((btn) => {
       this.renderer.removeStyle(btn, 'display');
     });
-    console.log('Pagination buttons shown');
   }
 }

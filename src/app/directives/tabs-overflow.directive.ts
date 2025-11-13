@@ -116,13 +116,10 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     }
 
     if (!this._tabHeaderElement) {
-      console.warn('Could not find tab header element');
-      console.log('Native element:', nativeElement);
-      console.log('Children:', nativeElement.children);
+      console.warn('TabsOverflowDirective: Could not find tab header element');
       return;
     }
 
-    console.log('Tab header found:', this._tabHeaderElement);
     this.setupOverflowDetection();
   }
 
@@ -194,11 +191,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       )
     ) as HTMLElement[];
 
-    console.log('detectOverflow - tabListContainer:', tabListContainer);
-    console.log('detectOverflow - found tabs:', tabElements.length);
-
     if (!tabListContainer || tabElements.length === 0) {
-      console.warn('No tab list container or tabs found');
       return {
         hasOverflow: false,
         allTabs: [],
@@ -244,21 +237,11 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     this.maxVisibleTabs = Math.max(1, fittingTabCount); // At least 1 tab visible
     const hasOverflow = allTabs.length > this.maxVisibleTabs;
 
-    console.log('Calculated fitting tabs:', {
-      containerWidth,
-      availableWidth,
-      maxVisibleTabs: this.maxVisibleTabs,
-      totalTabs: allTabs.length,
-      hasOverflow,
-      tabWidths: tabElements.map(el => el.getBoundingClientRect().width)
-    });
-
     // Initialize visible tab indices if not set or if we need to recalculate
     if (this.visibleTabIndices.length === 0 || this.visibleTabIndices.length > this.maxVisibleTabs) {
       this.visibleTabIndices = allTabs
         .slice(0, this.maxVisibleTabs)
         .map(t => t.index);
-      console.log('Initialized visible tab indices:', this.visibleTabIndices);
     }
 
     // Apply visibility based on visibleTabIndices
@@ -278,22 +261,12 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       }
     });
 
-    const result = {
+    return {
       hasOverflow,
       allTabs,
       visibleTabs,
       hiddenTabs,
     };
-
-    console.log('Overflow detection result:', {
-      hasOverflow: result.hasOverflow,
-      totalTabs: result.allTabs.length,
-      visibleCount: result.visibleTabs.length,
-      hiddenCount: result.hiddenTabs.length,
-      visibleIndices: this.visibleTabIndices,
-    });
-
-    return result;
   }
 
   /**
@@ -301,11 +274,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
    * This will show the selected tab and hide the first visible tab to maintain space
    */
   makeTabVisible(selectedIndex: number): void {
-    console.log('makeTabVisible called with index:', selectedIndex);
-
     // If the tab is already visible, just navigate
     if (this.visibleTabIndices.includes(selectedIndex)) {
-      console.log('Tab already visible, just navigating');
       this.navigateToTab(selectedIndex);
       return;
     }
@@ -317,8 +287,6 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
 
     // Add the selected tab to visible tabs
     this.visibleTabIndices.push(selectedIndex);
-
-    console.log('Updated visible tab indices:', this.visibleTabIndices);
 
     // Trigger re-detection to apply visibility changes
     const state = this.detectOverflow();
