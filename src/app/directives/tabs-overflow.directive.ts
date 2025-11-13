@@ -45,6 +45,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   private _tabHeaderElement: HTMLElement | null = null;
   private visibleTabIndices: number[] = [];
   private maxVisibleTabs = 0;
+  private isInitialized = false;
 
   /**
    * Public getter for tab header element
@@ -60,11 +61,16 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Wait for DOM to be fully rendered with longer delay
-    timer(300)
+    // Wait for DOM to be fully rendered and painted
+    // Use longer delay and requestAnimationFrame for better timing
+    timer(0)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
-        this.initialize();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            this.initialize();
+          });
+        });
       });
   }
 
@@ -202,10 +208,27 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
 
     // Build tab info array
     const allTabs: TabInfo[] = tabElements.map((element, index) => {
+      // Try multiple approaches to get the label
+      let label = '';
+
+      // Approach 1: Look for content wrapper
       const labelElement = element.querySelector(
         '.mat-mdc-tab-link-content, .mat-tab-label-content'
       );
-      const label = labelElement?.textContent?.trim() || `Tab ${index + 1}`;
+      if (labelElement) {
+        label = labelElement.textContent?.trim() || '';
+      }
+
+      // Approach 2: Get directly from element if no wrapper found
+      if (!label) {
+        label = element.textContent?.trim() || '';
+      }
+
+      // Fallback
+      if (!label) {
+        label = `Tab ${index + 1}`;
+      }
+
       return { label, index, element };
     });
 
@@ -218,12 +241,14 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     const menuButtonWidth = currentlyHasOverflow ? 0 : 56; // Menu will be added if overflow detected
     const availableWidth = containerWidth - menuButtonWidth;
 
-    // Temporarily make all tabs visible for accurate measurement
-    const originalDisplay = tabElements.map(el => el.style.display);
-    tabElements.forEach(el => {
-      el.style.display = '';
-      el.style.pointerEvents = '';
-    });
+    // On first run, ensure all tabs are clickable and visible for measurement
+    if (!this.isInitialized) {
+      tabElements.forEach(el => {
+        el.style.display = '';
+        el.style.pointerEvents = 'auto';
+        el.style.visibility = 'visible';
+      });
+    }
 
     // Calculate which tabs fit
     let cumulativeWidth = 0;
@@ -254,6 +279,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     if (this.visibleTabIndices.length === 0) {
       this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
     }
+
+    this.isInitialized = true;
 
     // Split tabs into visible and hidden based on indices
     const visibleTabs: TabInfo[] = [];
