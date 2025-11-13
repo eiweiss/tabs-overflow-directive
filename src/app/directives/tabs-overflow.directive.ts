@@ -308,17 +308,27 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       }
 
       // Check if we can fit more tabs (when resizing larger)
+      // Add hidden tabs in their natural order (ascending index)
       const hiddenTabIndices = allTabs
         .map(t => t.index)
-        .filter(idx => !this.visibleTabIndices.includes(idx));
+        .filter(idx => !this.visibleTabIndices.includes(idx))
+        .sort((a, b) => a - b);
 
+      // Try to add tabs one by one
       for (const hiddenIdx of hiddenTabIndices) {
         const hiddenTab = allTabs.find(t => t.index === hiddenIdx);
         if (hiddenTab) {
           const hiddenTabWidth = hiddenTab.element.getBoundingClientRect().width;
           if (cumulativeWidth + hiddenTabWidth <= availableWidth) {
-            // This tab fits, add it
-            this.visibleTabIndices.push(hiddenIdx);
+            // Find correct position to insert (keep array sorted)
+            const insertPos = this.visibleTabIndices.findIndex(idx => idx > hiddenIdx);
+            if (insertPos === -1) {
+              // Insert at end
+              this.visibleTabIndices.push(hiddenIdx);
+            } else {
+              // Insert at correct position
+              this.visibleTabIndices.splice(insertPos, 0, hiddenIdx);
+            }
             cumulativeWidth += hiddenTabWidth;
           }
         }
