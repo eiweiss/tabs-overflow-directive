@@ -46,6 +46,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   private visibleTabIndices: number[] = [];
   private maxVisibleTabs = 0;
   private isInitialized = false;
+  private mutationObserver: MutationObserver | null = null;
+  private isUpdating = false;
 
   /**
    * Public getter for tab header element
@@ -77,6 +79,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this.mutationObserver?.disconnect();
   }
 
   private initialize(): void {
@@ -138,42 +141,59 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       startWith(null)
     );
 
-    // Observable for DOM mutations
+    // Observable for DOM mutations (only for tab additions/removals, not our own changes)
     const mutation$ = new Observable<MutationRecord[]>((observer) => {
-      const mutationObserver = new MutationObserver((mutations) => {
-        observer.next(mutations);
+      this.mutationObserver = new MutationObserver((mutations) => {
+        // Ignore mutations while we're updating
+        if (this.isUpdating) return;
+
+        // Only react to meaningful changes (tab additions/removals)
+        const hasRelevantChanges = mutations.some(mutation => {
+          return mutation.type === 'childList' &&
+                 Array.from(mutation.addedNodes).some(node =>
+                   (node as HTMLElement).classList?.contains('mat-mdc-tab-link') ||
+                   (node as HTMLElement).classList?.contains('mat-tab-link')
+                 ) ||
+                 Array.from(mutation.removedNodes).some(node =>
+                   (node as HTMLElement).classList?.contains('mat-mdc-tab-link') ||
+                   (node as HTMLElement).classList?.contains('mat-tab-link')
+                 );
+        });
+
+        if (hasRelevantChanges) {
+          observer.next(mutations);
+        }
       });
 
-      mutationObserver.observe(this._tabHeaderElement!, {
+      this.mutationObserver.observe(this._tabHeaderElement!, {
         childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['class', 'style'],
+        subtree: false, // Only direct children, not subtree
       });
 
-      return () => mutationObserver.disconnect();
-    }).pipe(debounceTime(100));
+      return () => this.mutationObserver?.disconnect();
+    }).pipe(debounceTime(200));
 
-    // Observable for periodic checks (for route changes)
-    const periodic$ = timer(0, 500);
-
-    // Combine all streams
-    merge(resize$, mutation$, periodic$)
+    // Combine streams (removed periodic timer to avoid constant updates)
+    merge(resize$, mutation$)
       .pipe(
-        debounceTime(100),
-        map(() => this.detectOverflow()),
+        debounceTime(150),
+        map(() => {
+          if (this.isUpdating) return null;
+          return this.detectOverflow();
+        }),
         distinctUntilChanged(
-          (prev, curr) =>
-            prev.hasOverflow === curr.hasOverflow &&
-            prev.allTabs.length === curr.allTabs.length
+          (prev, curr) => {
+            if (!prev || !curr) return true;
+            return prev.hasOverflow === curr.hasOverflow &&
+              prev.allTabs.length === curr.allTabs.length &&
+              prev.visibleTabs.length === curr.visibleTabs.length;
+          }
         ),
         takeUntil(this.destroy$)
       )
       .subscribe((state) => {
-        this.hasOverflow.set(state.hasOverflow);
-        this.allTabs.set(state.allTabs);
-        this.visibleTabs.set(state.visibleTabs);
-        this.hiddenTabs.set(state.hiddenTabs);
+        if (!state) return;
+        this.updateState(state);
       });
   }
 
@@ -313,6 +333,24 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   /**
+   * Update state with isUpdating flag to prevent mutation loop
+   */
+  private updateState(state: { hasOverflow: boolean; allTabs: TabInfo[]; visibleTabs: TabInfo[]; hiddenTabs: TabInfo[] }): void {
+    this.isUpdating = true;
+    try {
+      this.hasOverflow.set(state.hasOverflow);
+      this.allTabs.set(state.allTabs);
+      this.visibleTabs.set(state.visibleTabs);
+      this.hiddenTabs.set(state.hiddenTabs);
+    } finally {
+      // Reset flag after a short delay to allow DOM to settle
+      setTimeout(() => {
+        this.isUpdating = false;
+      }, 50);
+    }
+  }
+
+  /**
    * Make a tab visible when selected from dropdown
    * This will show the selected tab and hide the first visible tab to maintain space
    */
@@ -333,10 +371,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
 
     // Trigger re-detection to apply visibility changes
     const state = this.detectOverflow();
-    this.hasOverflow.set(state.hasOverflow);
-    this.allTabs.set(state.allTabs);
-    this.visibleTabs.set(state.visibleTabs);
-    this.hiddenTabs.set(state.hiddenTabs);
+    this.updateState(state);
 
     // Navigate to the selected tab
     this.navigateToTab(selectedIndex);
