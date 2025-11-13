@@ -193,7 +193,6 @@ export class OverflowMenuComponent {
     all: Array<{ label: string; index: number }>,
     hidden: Array<{ label: string; index: number }>
   ): void {
-    console.log('Updating menu tabs:', { all, hidden });
     this.allTabs.set(all);
     this.hiddenTabs.set(hidden);
   }
@@ -202,7 +201,6 @@ export class OverflowMenuComponent {
    * Handles tab selection
    */
   onTabSelect(index: number): void {
-    console.log('Menu: Tab selected', index);
     this.tabSelected.emit(index);
   }
 }
