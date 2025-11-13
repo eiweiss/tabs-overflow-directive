@@ -43,12 +43,12 @@ import { CdkMenuModule } from '@angular/cdk/menu';
 
       <ng-template #menu>
         <div class="overflow-menu" cdkMenu>
-          @if (visibleTabs().length > 0) {
+          @if (allTabs().length > 0) {
             <div class="overflow-menu-section">
-              <div class="overflow-menu-label">Visible Tabs</div>
-              @for (tab of visibleTabs(); track tab.index) {
+              <div class="overflow-menu-label">All Tabs</div>
+              @for (tab of allTabs(); track tab.index) {
                 <button
-                  class="overflow-menu-item visible-tab"
+                  class="overflow-menu-item"
                   cdkMenuItem
                   (click)="onTabSelect(tab.index)"
                   type="button"
@@ -80,10 +80,15 @@ import { CdkMenuModule } from '@angular/cdk/menu';
   `,
   styles: [
     `
+      :host {
+        display: flex;
+        align-items: center;
+      }
+
       .overflow-menu-container {
         display: flex;
         align-items: center;
-        margin-right: 8px;
+        height: 48px;
       }
 
       .overflow-menu-trigger {
@@ -169,10 +174,6 @@ import { CdkMenuModule } from '@angular/cdk/menu';
         background-color: rgba(0, 0, 0, 0.08);
       }
 
-      .overflow-menu-item.visible-tab {
-        font-weight: 500;
-      }
-
       .overflow-menu-item.hidden-tab {
         opacity: 0.7;
       }
@@ -182,17 +183,18 @@ import { CdkMenuModule } from '@angular/cdk/menu';
 export class OverflowMenuComponent {
   @Output() tabSelected = new EventEmitter<number>();
 
-  visibleTabs = signal<Array<{ label: string; index: number }>>([]);
+  allTabs = signal<Array<{ label: string; index: number }>>([]);
   hiddenTabs = signal<Array<{ label: string; index: number }>>([]);
 
   /**
    * Updates the tabs displayed in the menu
    */
   updateTabs(
-    visible: Array<{ label: string; index: number }>,
+    all: Array<{ label: string; index: number }>,
     hidden: Array<{ label: string; index: number }>
   ): void {
-    this.visibleTabs.set(visible);
+    console.log('Updating menu tabs:', { all, hidden });
+    this.allTabs.set(all);
     this.hiddenTabs.set(hidden);
   }
 
@@ -200,6 +202,7 @@ export class OverflowMenuComponent {
    * Handles tab selection
    */
   onTabSelect(index: number): void {
+    console.log('Menu: Tab selected', index);
     this.tabSelected.emit(index);
   }
 }
