@@ -202,6 +202,16 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   private detectOverflow() {
+    // Skip if we're currently updating to prevent race conditions
+    if (this.isUpdating) {
+      return {
+        hasOverflow: this.hasOverflow(),
+        allTabs: this.allTabs(),
+        visibleTabs: this.visibleTabs(),
+        hiddenTabs: this.hiddenTabs(),
+      };
+    }
+
     if (!this._tabHeaderElement) {
       return {
         hasOverflow: false,
@@ -287,74 +297,45 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
       this.isInitialized = true;
     } else {
-      // After initialization: validate current visible tabs and check if we can fit more/less
+      // After initialization: recalculate which tabs fit
 
-      // Temporarily make all tabs visible for accurate measurement
+      // ALWAYS make all tabs visible before measuring
       tabElements.forEach(el => {
         el.style.display = '';
         el.style.pointerEvents = 'auto';
         el.style.visibility = 'visible';
       });
 
-      // Measure width of currently visible tabs
-      let cumulativeWidth = 0;
-      const visibleTabElements = this.visibleTabIndices
-        .map(idx => allTabs.find(t => t.index === idx))
-        .filter(t => t !== undefined) as TabInfo[];
+      // Create a working copy of visible indices
+      let workingIndices = [...this.visibleTabIndices];
 
-      for (const tabInfo of visibleTabElements) {
-        const tabWidth = tabInfo.element.getBoundingClientRect().width;
-        cumulativeWidth += tabWidth;
+      // Step 1: Remove tabs from the right if they don't fit
+      while (workingIndices.length > 1) {
+        const width = this.calculateWidth(workingIndices, allTabs);
+        if (width <= availableWidth) {
+          break; // Current tabs fit
+        }
+        workingIndices.pop(); // Remove rightmost
       }
 
-      // Check if we can fit more tabs (when resizing larger)
-      // Add hidden tabs in their natural order (ascending index)
-      const hiddenTabIndices = allTabs
+      // Step 2: Try to add hidden tabs (in sorted order) if there's space
+      const hiddenIndices = allTabs
         .map(t => t.index)
-        .filter(idx => !this.visibleTabIndices.includes(idx))
+        .filter(idx => !workingIndices.includes(idx))
         .sort((a, b) => a - b);
 
-      // Try to add tabs one by one
-      for (const hiddenIdx of hiddenTabIndices) {
-        const hiddenTab = allTabs.find(t => t.index === hiddenIdx);
-        if (hiddenTab) {
-          const hiddenTabWidth = hiddenTab.element.getBoundingClientRect().width;
-          if (cumulativeWidth + hiddenTabWidth <= availableWidth) {
-            // Find correct position to insert (keep array sorted)
-            const insertPos = this.visibleTabIndices.findIndex(idx => idx > hiddenIdx);
-            if (insertPos === -1) {
-              // Insert at end
-              this.visibleTabIndices.push(hiddenIdx);
-            } else {
-              // Insert at correct position
-              this.visibleTabIndices.splice(insertPos, 0, hiddenIdx);
-            }
-            cumulativeWidth += hiddenTabWidth;
-          }
+      for (const hiddenIdx of hiddenIndices) {
+        const testIndices = [...workingIndices, hiddenIdx].sort((a, b) => a - b);
+        const width = this.calculateWidth(testIndices, allTabs);
+
+        if (width <= availableWidth) {
+          // This tab fits, add it
+          workingIndices = testIndices;
         }
       }
 
-      // If current visible tabs don't fit, remove from the end (right side) until they fit
-      // Recalculate in case we added tabs
-      cumulativeWidth = 0;
-      const updatedVisibleElements = this.visibleTabIndices
-        .map(idx => allTabs.find(t => t.index === idx))
-        .filter(t => t !== undefined) as TabInfo[];
-
-      for (const tabInfo of updatedVisibleElements) {
-        cumulativeWidth += tabInfo.element.getBoundingClientRect().width;
-      }
-
-      while (cumulativeWidth > availableWidth && this.visibleTabIndices.length > 1) {
-        const removedIndex = this.visibleTabIndices.pop()!;
-        const removedTab = allTabs.find(t => t.index === removedIndex);
-        if (removedTab) {
-          const removedWidth = removedTab.element.getBoundingClientRect().width;
-          cumulativeWidth -= removedWidth;
-        }
-      }
-
-      // Update maxVisibleTabs to match current visible count
+      // Update visible indices and max
+      this.visibleTabIndices = workingIndices;
       this.maxVisibleTabs = Math.max(1, this.visibleTabIndices.length);
     }
 
@@ -391,6 +372,20 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   /**
+   * Calculate total width of given tab indices
+   */
+  private calculateWidth(indices: number[], allTabs: TabInfo[]): number {
+    let width = 0;
+    for (const idx of indices) {
+      const tab = allTabs.find(t => t.index === idx);
+      if (tab) {
+        width += tab.element.getBoundingClientRect().width;
+      }
+    }
+    return width;
+  }
+
+  /**
    * Update state with isUpdating flag to prevent mutation loop
    */
   private updateState(state: { hasOverflow: boolean; allTabs: TabInfo[]; visibleTabs: TabInfo[]; hiddenTabs: TabInfo[] }): void {
@@ -401,10 +396,10 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       this.visibleTabs.set(state.visibleTabs);
       this.hiddenTabs.set(state.hiddenTabs);
     } finally {
-      // Reset flag after a short delay to allow DOM to settle
+      // Reset flag after a delay to allow DOM to settle and prevent race conditions
       setTimeout(() => {
         this.isUpdating = false;
-      }, 50);
+      }, 150);
     }
   }
 
