@@ -13,6 +13,7 @@ import { HelloComponent } from './hello.component';
 import { HomeComponent } from './home/home.component';
 import { SearchComponent } from './search/search.component';
 import { OthersComponent } from './others/others.component';
+import { TabsOverflowDirective } from './directives/tabs-overflow.directive';
 
 const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
@@ -29,6 +30,7 @@ const routes: Routes = [
     MatTabsModule,
     CdkMenuModule,
     OverlayModule,
+    TabsOverflowDirective,
     RouterModule.forRoot(routes)
   ],
   declarations: [

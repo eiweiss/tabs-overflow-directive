@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["src/app/app.component.css"],
+  "sourcesContent": ["p {\n  font-family: Lato;\n}"],
+  "mappings": ";AAAA;AACE,eAAa;AACf;",
+  "names": []
+}
