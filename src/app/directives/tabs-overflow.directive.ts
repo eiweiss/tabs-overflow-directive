@@ -256,13 +256,9 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return { label, index, element };
     });
 
-    // Check if we have existing overflow state
-    const currentlyHasOverflow = this.visibleTabIndices.length > 0 &&
-                                  this.visibleTabIndices.length < allTabs.length;
-
-    // Calculate container width accounting for menu if already present
+    // Calculate container width - always reserve space for menu button
     const containerWidth = tabListContainer.getBoundingClientRect().width;
-    const menuButtonWidth = currentlyHasOverflow ? 0 : 56; // Menu will be added if overflow detected
+    const menuButtonWidth = 56; // Always reserve space for overflow menu button
     const availableWidth = containerWidth - menuButtonWidth;
 
     // On first run, ensure all tabs are clickable and visible for measurement
@@ -292,16 +288,31 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     const newMaxVisibleTabs = Math.max(1, fittingTabCount);
     const hasOverflow = allTabs.length > newMaxVisibleTabs;
 
-    // Update max visible tabs if changed
-    if (this.maxVisibleTabs !== newMaxVisibleTabs) {
-      this.maxVisibleTabs = newMaxVisibleTabs;
-      // Reset visible indices when max changes
-      this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
-    }
-
-    // Initialize visible tab indices on first run
+    // Initialize visible tab indices on first run only
     if (this.visibleTabIndices.length === 0) {
-      this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
+      this.visibleTabIndices = allTabs.slice(0, newMaxVisibleTabs).map(t => t.index);
+      this.maxVisibleTabs = newMaxVisibleTabs;
+    }
+    // If max visible tabs changed, adjust visible indices without resetting
+    else if (this.maxVisibleTabs !== newMaxVisibleTabs) {
+      const oldMax = this.maxVisibleTabs;
+      this.maxVisibleTabs = newMaxVisibleTabs;
+
+      // If we need to show fewer tabs, trim from the end
+      if (newMaxVisibleTabs < oldMax && this.visibleTabIndices.length > newMaxVisibleTabs) {
+        this.visibleTabIndices = this.visibleTabIndices.slice(0, newMaxVisibleTabs);
+      }
+      // If we can show more tabs, add from the hidden ones
+      else if (newMaxVisibleTabs > oldMax) {
+        const hiddenIndices = allTabs
+          .map(t => t.index)
+          .filter(idx => !this.visibleTabIndices.includes(idx));
+
+        const toAdd = Math.min(newMaxVisibleTabs - this.visibleTabIndices.length, hiddenIndices.length);
+        for (let i = 0; i < toAdd; i++) {
+          this.visibleTabIndices.push(hiddenIndices[i]);
+        }
+      }
     }
 
     this.isInitialized = true;
@@ -365,9 +376,10 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Remove the first visible tab and add the new one at the end
-    if (this.visibleTabIndices.length >= this.maxVisibleTabs) {
-      this.visibleTabIndices.shift(); // Remove first (oldest) visible tab
+    // Always maintain exactly maxVisibleTabs visible
+    // Remove the first tab if we're at capacity
+    while (this.visibleTabIndices.length >= this.maxVisibleTabs) {
+      this.visibleTabIndices.shift();
     }
 
     // Add the selected tab to visible tabs
@@ -384,7 +396,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     this.navigateToTab(selectedIndex);
 
     // Final scroll position reset after everything settles
-    setTimeout(() => this.resetScrollPosition(), 50);
+    setTimeout(() => this.resetScrollPosition(), 100);
   }
 
   /**
@@ -420,18 +432,38 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       tabListContainer.scrollLeft = 0;
     }
 
-    // Reset transform on tab list
-    const tabList = this._tabHeaderElement.querySelector(
-      '.mat-mdc-tab-list, .mat-tab-list'
-    ) as HTMLElement;
+    // Reset transform on tab list and all potential scroll containers
+    const scrollContainers = [
+      '.mat-mdc-tab-list',
+      '.mat-tab-list',
+      '.mat-mdc-tab-labels',
+      '.mat-tab-labels',
+      '.mat-mdc-tab-header-pagination-controls-enabled'
+    ];
 
-    if (tabList) {
-      tabList.style.transform = 'none';
-    }
+    scrollContainers.forEach(selector => {
+      const element = this._tabHeaderElement!.querySelector(selector) as HTMLElement;
+      if (element) {
+        element.style.transform = 'translateX(0px)';
+        if (element.scrollLeft !== undefined) {
+          element.scrollLeft = 0;
+        }
+      }
+    });
 
     // Reset scrollDistance on MatTabNav if accessible
-    if (this.matTabNav && '_scrollDistance' in this.matTabNav) {
-      (this.matTabNav as any)._scrollDistance = 0;
+    if (this.matTabNav) {
+      if ('_scrollDistance' in this.matTabNav) {
+        (this.matTabNav as any)._scrollDistance = 0;
+      }
+      // Trigger change detection to update the view
+      if ('updatePagination' in this.matTabNav && typeof (this.matTabNav as any).updatePagination === 'function') {
+        try {
+          (this.matTabNav as any).updatePagination();
+        } catch (e) {
+          // Ignore if method doesn't exist or fails
+        }
+      }
     }
   }
 }
