@@ -3,10 +3,8 @@ import {
   ElementRef,
   OnDestroy,
   AfterViewInit,
-  Renderer2,
   inject,
   signal,
-  effect,
 } from '@angular/core';
 import { MatTabNav } from '@angular/material/tabs';
 import { Subject, fromEvent, merge, timer, Observable } from 'rxjs';
@@ -52,8 +50,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return;
     }
 
-    // Wait for DOM to be fully rendered
-    timer(100)
+    // Wait for DOM to be fully rendered with longer delay
+    timer(300)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
         this.initialize();
@@ -66,15 +64,55 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   private initialize(): void {
-    this.tabHeaderElement = this.elementRef.nativeElement.querySelector(
+    // Try multiple approaches to find the tab header
+    const nativeElement = this.elementRef.nativeElement as HTMLElement;
+
+    // Approach 1: Look for tab header as direct child
+    this.tabHeaderElement = nativeElement.querySelector(
       '.mat-mdc-tab-header, .mat-tab-header'
     );
 
+    // Approach 2: Use the native element itself if it has the right class
+    if (!this.tabHeaderElement) {
+      if (
+        nativeElement.classList.contains('mat-mdc-tab-header') ||
+        nativeElement.classList.contains('mat-tab-header')
+      ) {
+        this.tabHeaderElement = nativeElement;
+      }
+    }
+
+    // Approach 3: Access via MatTabNav's internal _tabHeader
+    if (!this.tabHeaderElement && this.matTabNav) {
+      const tabNav = this.matTabNav as any;
+      if (tabNav._tabHeader && tabNav._tabHeader._elementRef) {
+        this.tabHeaderElement = tabNav._tabHeader._elementRef.nativeElement;
+      }
+    }
+
+    // Approach 4: Look in the entire element tree
+    if (!this.tabHeaderElement) {
+      const allElements = nativeElement.querySelectorAll('*');
+      for (let i = 0; i < allElements.length; i++) {
+        const el = allElements[i] as HTMLElement;
+        if (
+          el.classList.contains('mat-mdc-tab-header') ||
+          el.classList.contains('mat-tab-header')
+        ) {
+          this.tabHeaderElement = el;
+          break;
+        }
+      }
+    }
+
     if (!this.tabHeaderElement) {
       console.warn('Could not find tab header element');
+      console.log('Native element:', nativeElement);
+      console.log('Children:', nativeElement.children);
       return;
     }
 
+    console.log('Tab header found:', this.tabHeaderElement);
     this.setupOverflowDetection();
   }
 
