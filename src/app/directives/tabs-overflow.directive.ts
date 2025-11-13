@@ -184,7 +184,11 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       )
     ) as HTMLElement[];
 
+    console.log('detectOverflow - tabListContainer:', tabListContainer);
+    console.log('detectOverflow - found tabs:', tabElements.length);
+
     if (!tabListContainer || tabElements.length === 0) {
+      console.warn('No tab list container or tabs found');
       return {
         hasOverflow: false,
         allTabs: [],
@@ -201,6 +205,10 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       '.mat-mdc-tab-header-pagination-after:not(.mat-mdc-tab-header-pagination-disabled)'
     );
     const hasPagination = !!(paginationBefore || paginationAfter);
+
+    console.log('Pagination before:', paginationBefore);
+    console.log('Pagination after:', paginationAfter);
+    console.log('Has pagination (overflow):', hasPagination);
 
     const containerRect = tabListContainer.getBoundingClientRect();
     const allTabs: TabInfo[] = [];
@@ -222,28 +230,34 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         rect.left >= containerRect.left - 10 &&
         rect.right <= containerRect.right + 10;
 
-      if (isVisible && !hasPagination) {
-        visibleTabs.push(tabInfo);
-      } else {
-        if (!hasPagination) {
+      if (hasPagination) {
+        // We have overflow, check visibility
+        if (isVisible) {
           visibleTabs.push(tabInfo);
         } else {
-          // With pagination, need to check more carefully
-          if (isVisible) {
-            visibleTabs.push(tabInfo);
-          } else {
-            hiddenTabs.push(tabInfo);
-          }
+          hiddenTabs.push(tabInfo);
         }
+      } else {
+        // No overflow, all tabs are visible
+        visibleTabs.push(tabInfo);
       }
     });
 
-    return {
+    const result = {
       hasOverflow: hasPagination,
       allTabs,
       visibleTabs,
       hiddenTabs,
     };
+
+    console.log('Overflow detection result:', {
+      hasOverflow: result.hasOverflow,
+      totalTabs: result.allTabs.length,
+      visibleCount: result.visibleTabs.length,
+      hiddenCount: result.hiddenTabs.length,
+    });
+
+    return result;
   }
 
   /**

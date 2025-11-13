@@ -44,15 +44,23 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   private tabHeaderElement: HTMLElement | null = null;
 
   constructor() {
+    console.log('TabsOverflowMenuDirective constructor called');
     // React to overflow changes using Angular signals
     effect(() => {
       const hasOverflow = this.tabsOverflow.hasOverflow();
       const allTabs = this.tabsOverflow.allTabs();
 
+      console.log('TabsOverflowMenuDirective effect triggered:', {
+        hasOverflow,
+        allTabsCount: allTabs.length,
+      });
+
       if (hasOverflow && allTabs.length > 0) {
+        console.log('Showing menu with tabs:', allTabs);
         this.showMenu(allTabs);
         this.hidePaginationButtons();
       } else {
+        console.log('Hiding menu (no overflow or no tabs)');
         this.hideMenu();
         this.showPaginationButtons();
       }
@@ -75,21 +83,31 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   }
 
   private showMenu(tabs: Array<{ label: string; index: number }>): void {
+    console.log('showMenu called with tabs:', tabs.length);
     if (!this.menuComponentRef) {
+      console.log('Creating new menu');
       this.createMenu();
     }
 
     if (this.menuComponentRef) {
+      console.log('Updating menu tabs');
       this.menuComponentRef.instance.updateTabs(tabs, []);
+    } else {
+      console.warn('Menu component ref is null after createMenu()');
     }
   }
 
   private hideMenu(): void {
+    console.log('hideMenu called');
     this.destroyMenu();
   }
 
   private createMenu(): void {
-    if (!this.tabHeaderElement) return;
+    console.log('createMenu called, tabHeaderElement:', this.tabHeaderElement);
+    if (!this.tabHeaderElement) {
+      console.warn('Cannot create menu: tabHeaderElement not found yet');
+      return;
+    }
 
     // Create the component
     this.menuComponentRef = createComponent(OverflowMenuComponent, {
