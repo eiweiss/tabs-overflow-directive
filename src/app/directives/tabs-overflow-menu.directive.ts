@@ -41,7 +41,6 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
 
   private menuComponentRef: ComponentRef<OverflowMenuComponent> | null = null;
-  private tabHeaderElement: HTMLElement | null = null;
 
   constructor() {
     console.log('TabsOverflowMenuDirective constructor called');
@@ -49,18 +48,20 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     effect(() => {
       const hasOverflow = this.tabsOverflow.hasOverflow();
       const allTabs = this.tabsOverflow.allTabs();
+      const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
 
       console.log('TabsOverflowMenuDirective effect triggered:', {
         hasOverflow,
         allTabsCount: allTabs.length,
+        hasTabHeader: !!tabHeaderElement,
       });
 
-      if (hasOverflow && allTabs.length > 0) {
+      if (hasOverflow && allTabs.length > 0 && tabHeaderElement) {
         console.log('Showing menu with tabs:', allTabs);
         this.showMenu(allTabs);
         this.hidePaginationButtons();
       } else {
-        console.log('Hiding menu (no overflow or no tabs)');
+        console.log('Hiding menu (no overflow or no tabs or no header)');
         this.hideMenu();
         this.showPaginationButtons();
       }
@@ -68,12 +69,7 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   }
 
   ngAfterViewInit(): void {
-    // Find tab header element
-    setTimeout(() => {
-      this.tabHeaderElement = this.elementRef.nativeElement.querySelector(
-        '.mat-mdc-tab-header, .mat-tab-header'
-      );
-    }, 150);
+    // No need to find tab header element anymore - using shared one from TabsOverflowDirective
   }
 
   ngOnDestroy(): void {
@@ -103,8 +99,9 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   }
 
   private createMenu(): void {
-    console.log('createMenu called, tabHeaderElement:', this.tabHeaderElement);
-    if (!this.tabHeaderElement) {
+    const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
+    console.log('createMenu called, tabHeaderElement:', tabHeaderElement);
+    if (!tabHeaderElement) {
       console.warn('Cannot create menu: tabHeaderElement not found yet');
       return;
     }
@@ -134,19 +131,21 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
     this.renderer.setStyle(menuElement, 'align-items', 'center');
 
     // Insert before pagination
-    const paginationContainer = this.tabHeaderElement.querySelector(
+    const paginationContainer = tabHeaderElement.querySelector(
       '.mat-mdc-tab-header-pagination-after, .mat-tab-header-pagination-after'
     );
 
     if (paginationContainer) {
       this.renderer.insertBefore(
-        this.tabHeaderElement,
+        tabHeaderElement,
         menuElement,
         paginationContainer
       );
     } else {
-      this.renderer.appendChild(this.tabHeaderElement, menuElement);
+      this.renderer.appendChild(tabHeaderElement, menuElement);
     }
+
+    console.log('Menu component created and inserted into DOM');
   }
 
   private destroyMenu(): void {
@@ -158,22 +157,26 @@ export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
   }
 
   private hidePaginationButtons(): void {
-    if (!this.tabHeaderElement) return;
-    const buttons = this.tabHeaderElement.querySelectorAll(
+    const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
+    if (!tabHeaderElement) return;
+    const buttons = tabHeaderElement.querySelectorAll(
       '.mat-mdc-tab-header-pagination, .mat-tab-header-pagination'
     );
     buttons.forEach((btn) => {
       this.renderer.setStyle(btn, 'display', 'none');
     });
+    console.log('Pagination buttons hidden');
   }
 
   private showPaginationButtons(): void {
-    if (!this.tabHeaderElement) return;
-    const buttons = this.tabHeaderElement.querySelectorAll(
+    const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
+    if (!tabHeaderElement) return;
+    const buttons = tabHeaderElement.querySelectorAll(
       '.mat-mdc-tab-header-pagination, .mat-tab-header-pagination'
     );
     buttons.forEach((btn) => {
       this.renderer.removeStyle(btn, 'display');
     });
+    console.log('Pagination buttons shown');
   }
 }

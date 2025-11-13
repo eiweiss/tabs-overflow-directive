@@ -42,7 +42,15 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   readonly visibleTabs = signal<TabInfo[]>([]);
   readonly hiddenTabs = signal<TabInfo[]>([]);
 
-  private tabHeaderElement: HTMLElement | null = null;
+  private _tabHeaderElement: HTMLElement | null = null;
+
+  /**
+   * Public getter for tab header element
+   * Used by composed directives
+   */
+  get tabHeaderElement(): HTMLElement | null {
+    return this._tabHeaderElement;
+  }
 
   ngAfterViewInit(): void {
     if (!this.matTabNav) {
@@ -68,30 +76,30 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     const nativeElement = this.elementRef.nativeElement as HTMLElement;
 
     // Approach 1: Look for tab header as direct child
-    this.tabHeaderElement = nativeElement.querySelector(
+    this._tabHeaderElement = nativeElement.querySelector(
       '.mat-mdc-tab-header, .mat-tab-header'
     );
 
     // Approach 2: Use the native element itself if it has the right class
-    if (!this.tabHeaderElement) {
+    if (!this._tabHeaderElement) {
       if (
         nativeElement.classList.contains('mat-mdc-tab-header') ||
         nativeElement.classList.contains('mat-tab-header')
       ) {
-        this.tabHeaderElement = nativeElement;
+        this._tabHeaderElement = nativeElement;
       }
     }
 
     // Approach 3: Access via MatTabNav's internal _tabHeader
-    if (!this.tabHeaderElement && this.matTabNav) {
+    if (!this._tabHeaderElement && this.matTabNav) {
       const tabNav = this.matTabNav as any;
       if (tabNav._tabHeader && tabNav._tabHeader._elementRef) {
-        this.tabHeaderElement = tabNav._tabHeader._elementRef.nativeElement;
+        this._tabHeaderElement = tabNav._tabHeader._elementRef.nativeElement;
       }
     }
 
     // Approach 4: Look in the entire element tree
-    if (!this.tabHeaderElement) {
+    if (!this._tabHeaderElement) {
       const allElements = nativeElement.querySelectorAll('*');
       for (let i = 0; i < allElements.length; i++) {
         const el = allElements[i] as HTMLElement;
@@ -99,25 +107,25 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
           el.classList.contains('mat-mdc-tab-header') ||
           el.classList.contains('mat-tab-header')
         ) {
-          this.tabHeaderElement = el;
+          this._tabHeaderElement = el;
           break;
         }
       }
     }
 
-    if (!this.tabHeaderElement) {
+    if (!this._tabHeaderElement) {
       console.warn('Could not find tab header element');
       console.log('Native element:', nativeElement);
       console.log('Children:', nativeElement.children);
       return;
     }
 
-    console.log('Tab header found:', this.tabHeaderElement);
+    console.log('Tab header found:', this._tabHeaderElement);
     this.setupOverflowDetection();
   }
 
   private setupOverflowDetection(): void {
-    if (!this.tabHeaderElement) return;
+    if (!this._tabHeaderElement) return;
 
     // Observable for window resize
     const resize$ = fromEvent(window, 'resize').pipe(
@@ -131,7 +139,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         observer.next(mutations);
       });
 
-      mutationObserver.observe(this.tabHeaderElement!, {
+      mutationObserver.observe(this._tabHeaderElement!, {
         childList: true,
         subtree: true,
         attributes: true,
@@ -165,7 +173,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   private detectOverflow() {
-    if (!this.tabHeaderElement) {
+    if (!this._tabHeaderElement) {
       return {
         hasOverflow: false,
         allTabs: [],
@@ -174,12 +182,12 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       };
     }
 
-    const tabListContainer = this.tabHeaderElement.querySelector(
+    const tabListContainer = this._tabHeaderElement.querySelector(
       '.mat-mdc-tab-list, .mat-tab-list'
     ) as HTMLElement;
 
     const tabElements = Array.from(
-      this.tabHeaderElement.querySelectorAll(
+      this._tabHeaderElement.querySelectorAll(
         '.mat-mdc-tab-link, .mat-tab-link'
       )
     ) as HTMLElement[];
@@ -198,10 +206,10 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     }
 
     // Check for pagination buttons (indicates overflow)
-    const paginationBefore = this.tabHeaderElement.querySelector(
+    const paginationBefore = this._tabHeaderElement.querySelector(
       '.mat-mdc-tab-header-pagination-before:not(.mat-mdc-tab-header-pagination-disabled)'
     );
-    const paginationAfter = this.tabHeaderElement.querySelector(
+    const paginationAfter = this._tabHeaderElement.querySelector(
       '.mat-mdc-tab-header-pagination-after:not(.mat-mdc-tab-header-pagination-disabled)'
     );
     const hasPagination = !!(paginationBefore || paginationAfter);
@@ -264,7 +272,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
    * Navigate to a specific tab by index
    */
   navigateToTab(index: number): void {
-    const tabElements = this.tabHeaderElement?.querySelectorAll(
+    const tabElements = this._tabHeaderElement?.querySelectorAll(
       '.mat-mdc-tab-link, .mat-tab-link'
     );
     if (tabElements && tabElements[index]) {
