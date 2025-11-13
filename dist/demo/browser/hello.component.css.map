@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["angular:styles/component:css;c85929c384c9f36c7a0331a0cedf837d9a8f03a1cbdb163108fefafa2718aaa6;/home/user/tabs-overflow-directive/src/app/hello.component.ts"],
-  "sourcesContent": ["h1 { font-family: Lato; }"],
-  "mappings": ";AAAA;AAAK,eAAa;AAAM;",
-  "names": []
-}
