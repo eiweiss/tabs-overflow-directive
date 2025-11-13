@@ -179,6 +179,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         debounceTime(150),
         map(() => {
           if (this.isUpdating) return null;
+          // Always reset scroll position before detection
+          this.resetScrollPosition();
           return this.detectOverflow();
         }),
         distinctUntilChanged(
@@ -194,6 +196,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       .subscribe((state) => {
         if (!state) return;
         this.updateState(state);
+        // Reset scroll position after state update to ensure no scrolling
+        setTimeout(() => this.resetScrollPosition(), 10);
       });
   }
 
@@ -369,12 +373,18 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     // Add the selected tab to visible tabs
     this.visibleTabIndices.push(selectedIndex);
 
+    // Reset scroll position before re-detection
+    this.resetScrollPosition();
+
     // Trigger re-detection to apply visibility changes
     const state = this.detectOverflow();
     this.updateState(state);
 
     // Navigate to the selected tab
     this.navigateToTab(selectedIndex);
+
+    // Final scroll position reset after everything settles
+    setTimeout(() => this.resetScrollPosition(), 50);
   }
 
   /**
@@ -386,6 +396,42 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     );
     if (tabElements && tabElements[index]) {
       (tabElements[index] as HTMLElement).click();
+
+      // Prevent Angular Material from scrolling the tab list
+      // Reset any scroll position that Material might have applied
+      setTimeout(() => {
+        this.resetScrollPosition();
+      }, 0);
+    }
+  }
+
+  /**
+   * Reset scroll position to prevent Material's auto-scroll behavior
+   */
+  private resetScrollPosition(): void {
+    if (!this._tabHeaderElement) return;
+
+    // Reset scroll on the tab list container
+    const tabListContainer = this._tabHeaderElement.querySelector(
+      '.mat-mdc-tab-list-container, .mat-tab-list-container'
+    ) as HTMLElement;
+
+    if (tabListContainer) {
+      tabListContainer.scrollLeft = 0;
+    }
+
+    // Reset transform on tab list
+    const tabList = this._tabHeaderElement.querySelector(
+      '.mat-mdc-tab-list, .mat-tab-list'
+    ) as HTMLElement;
+
+    if (tabList) {
+      tabList.style.transform = 'none';
+    }
+
+    // Reset scrollDistance on MatTabNav if accessible
+    if (this.matTabNav && '_scrollDistance' in this.matTabNav) {
+      (this.matTabNav as any)._scrollDistance = 0;
     }
   }
 }

@@ -16,4 +16,23 @@ body {
 [appTabsOverflowMenu] .mat-mdc-tab-list,
 [appTabsOverflowMenu] .mat-tab-list {
   overflow: hidden !important;
+  transform: none !important;
+}
+
+/* Force tab list container to stay at scroll position 0 */
+[appTabsOverflowMenu] .mat-mdc-tab-list-container,
+[appTabsOverflowMenu] .mat-tab-list-container {
+  overflow: hidden !important;
+}
+
+/* Disable any scroll animations */
+[appTabsOverflowMenu] .mat-mdc-tab-header,
+[appTabsOverflowMenu] .mat-tab-header {
+  overflow-x: hidden !important;
+}
+
+/* Reset any transforms that Material applies for scrolling */
+[appTabsOverflowMenu] .mat-mdc-tab-list .mat-mdc-tab-labels,
+[appTabsOverflowMenu] .mat-tab-list .mat-tab-labels {
+  transform: translateX(0) !important;
 }
