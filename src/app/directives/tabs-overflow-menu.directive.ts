@@ -1,0 +1,141 @@
+import {
+  Directive,
+  ElementRef,
+  OnDestroy,
+  AfterViewInit,
+  Renderer2,
+  inject,
+  ComponentRef,
+  createComponent,
+  EnvironmentInjector,
+  ApplicationRef,
+  effect,
+} from '@angular/core';
+import { TabsOverflowDirective } from './tabs-overflow.directive';
+import { OverflowMenuComponent } from './overflow-menu.component';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
+
+/**
+ * Directive that renders an overflow menu for tabs.
+ * Must be used together with TabsOverflowDirective.
+ * Uses Angular's directive composition for clean architecture.
+ */
+@Directive({
+  selector: '[appTabsOverflowMenu]',
+  standalone: true,
+  hostDirectives: [
+    {
+      directive: TabsOverflowDirective,
+      inputs: [],
+      outputs: [],
+    },
+  ],
+})
+export class TabsOverflowMenuDirective implements AfterViewInit, OnDestroy {
+  private readonly elementRef = inject(ElementRef);
+  private readonly renderer = inject(Renderer2);
+  private readonly injector = inject(EnvironmentInjector);
+  private readonly appRef = inject(ApplicationRef);
+  private readonly tabsOverflow = inject(TabsOverflowDirective);
+  private readonly destroy$ = new Subject<void>();
+
+  private menuComponentRef: ComponentRef<OverflowMenuComponent> | null = null;
+
+  constructor() {
+    // React to overflow changes using Angular signals
+    effect(() => {
+      const hasOverflow = this.tabsOverflow.hasOverflow();
+      const hiddenTabs = this.tabsOverflow.hiddenTabs();
+      const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
+
+      // Only update if we have tab header element
+      if (!tabHeaderElement) return;
+
+      // Show/hide menu based on overflow state
+      if (hasOverflow && hiddenTabs.length > 0) {
+        this.showMenu(hiddenTabs);
+      } else {
+        this.hideMenu();
+      }
+    });
+  }
+
+  ngAfterViewInit(): void {
+    // Hide pagination buttons once on initialization (handled by CSS)
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.destroyMenu();
+  }
+
+  private showMenu(tabs: Array<{ label: string; index: number }>): void {
+    if (!this.menuComponentRef) {
+      this.createMenu();
+    }
+
+    if (this.menuComponentRef) {
+      this.menuComponentRef.instance.updateTabs(tabs, []);
+    }
+  }
+
+  private hideMenu(): void {
+    this.destroyMenu();
+  }
+
+  private createMenu(): void {
+    const tabHeaderElement = this.tabsOverflow.tabHeaderElement;
+    if (!tabHeaderElement) {
+      return;
+    }
+
+    // Create the component
+    this.menuComponentRef = createComponent(OverflowMenuComponent, {
+      environmentInjector: this.injector,
+    });
+
+    // Handle tab selection
+    this.menuComponentRef.instance.tabSelected
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((index: number) => {
+        this.tabsOverflow.makeTabVisible(index);
+      });
+
+    // Attach to application
+    this.appRef.attachView(this.menuComponentRef.hostView);
+
+    // Get the menu element
+    const menuElement = (this.menuComponentRef.hostView as any)
+      .rootNodes[0] as HTMLElement;
+
+    // Style the menu
+    this.renderer.setStyle(menuElement, 'margin-left', 'auto');
+    this.renderer.setStyle(menuElement, 'display', 'flex');
+    this.renderer.setStyle(menuElement, 'align-items', 'center');
+
+    // Insert before pagination
+    const paginationContainer = tabHeaderElement.querySelector(
+      '.mat-mdc-tab-header-pagination-after, .mat-tab-header-pagination-after'
+    );
+
+    if (paginationContainer) {
+      this.renderer.insertBefore(
+        tabHeaderElement,
+        menuElement,
+        paginationContainer
+      );
+    } else {
+      this.renderer.appendChild(tabHeaderElement, menuElement);
+    }
+  }
+
+  private destroyMenu(): void {
+    if (this.menuComponentRef) {
+      this.appRef.detachView(this.menuComponentRef.hostView);
+      this.menuComponentRef.destroy();
+      this.menuComponentRef = null;
+    }
+  }
+}

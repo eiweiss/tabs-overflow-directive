@@ -1,41 +1,50 @@
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
-import { BrowserAnimationsModule, NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { FormsModule } from '@angular/forms';
-
 import { Routes, RouterModule } from '@angular/router';
+
+import { MatTabsModule } from '@angular/material/tabs';
+import { CdkMenuModule } from '@angular/cdk/menu';
+import { OverlayModule } from '@angular/cdk/overlay';
 
 import { AppComponent } from './app.component';
 import { HelloComponent } from './hello.component';
 import { HomeComponent } from './home/home.component';
 import { SearchComponent } from './search/search.component';
 import { OthersComponent } from './others/others.component';
-
-import 'hammerjs';
-
-import { MatTabsModule } from '@angular/material';
+import { TabsOverflowMenuDirective } from './directives/tabs-overflow-menu.directive';
 
 const routes: Routes = [
   { path: '', redirectTo: 'home', pathMatch: 'full' },
   { path: 'home', component: HomeComponent },
   { path: 'search', component: SearchComponent },
-  { path: 'others', component: OthersComponent }
+  { path: 'others', component: OthersComponent },
+  { path: 'dashboard', component: OthersComponent },
+  { path: 'analytics', component: OthersComponent },
+  { path: 'reports', component: OthersComponent },
+  { path: 'settings', component: OthersComponent },
+  { path: 'profile', component: OthersComponent },
+  { path: 'notifications', component: OthersComponent },
+  { path: 'messages', component: OthersComponent }
 ];
 
 @NgModule({
   imports: [
     BrowserModule,
     BrowserAnimationsModule,
-    NoopAnimationsModule,
     FormsModule,
     MatTabsModule,
+    CdkMenuModule,
+    OverlayModule,
+    TabsOverflowMenuDirective,
     RouterModule.forRoot(routes)
   ],
   declarations: [
-    AppComponent, 
-    HelloComponent, 
-    HomeComponent, 
-    SearchComponent, 
+    AppComponent,
+    HelloComponent,
+    HomeComponent,
+    SearchComponent,
     OthersComponent
   ],
   bootstrap: [AppComponent]

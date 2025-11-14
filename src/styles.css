@@ -1,1 +1,38 @@
-@import "~@angular/material/prebuilt-themes/indigo-pink.css";
+@import '@angular/material/prebuilt-themes/indigo-pink.css';
+
+body {
+  font-family: Roboto, 'Helvetica Neue', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* Hide pagination buttons when tabs-overflow directive is present */
+[appTabsOverflowMenu] .mat-mdc-tab-header-pagination,
+[appTabsOverflowMenu] .mat-tab-header-pagination {
+  display: none !important;
+}
+
+/* Prevent tab header from paginating/scrolling */
+[appTabsOverflowMenu] .mat-mdc-tab-list,
+[appTabsOverflowMenu] .mat-tab-list {
+  overflow: hidden !important;
+  transform: none !important;
+}
+
+/* Force tab list container to stay at scroll position 0 */
+[appTabsOverflowMenu] .mat-mdc-tab-list-container,
+[appTabsOverflowMenu] .mat-tab-list-container {
+  overflow: hidden !important;
+}
+
+/* Disable any scroll animations */
+[appTabsOverflowMenu] .mat-mdc-tab-header,
+[appTabsOverflowMenu] .mat-tab-header {
+  overflow-x: hidden !important;
+}
+
+/* Reset any transforms that Material applies for scrolling */
+[appTabsOverflowMenu] .mat-mdc-tab-list .mat-mdc-tab-labels,
+[appTabsOverflowMenu] .mat-tab-list .mat-tab-labels {
+  transform: translateX(0) !important;
+}

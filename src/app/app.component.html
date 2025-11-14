@@ -1,16 +1,22 @@
-<p>
-	Start editing to see some magic happen :)
-</p>
+<div style="padding: 20px;">
+  <h1>Tabs Overflow Directive Demo</h1>
+  <p>Resize the window to see the overflow dropdown appear when tabs don't fit!</p>
+</div>
 
-<nav mat-tab-nav-bar>
-  
-	<a mat-tab-link routerLink="/home" routerLinkActive #homeTab="routerLinkActive" [active]="homeTab.isActive">
-		Home
-	</a>
-	<a mat-tab-link routerLink="/search" routerLinkActive #searchTab="routerLinkActive" [active]="searchTab.isActive">Search</a>
-
-	<a mat-tab-link routerLink="/others" routerLinkActive #otherTab="routerLinkActive" [active]="otherTab.isActive">Others</a>
-
+<nav mat-tab-nav-bar [tabPanel]="tabPanel" appTabsOverflowMenu>
+  @for (link of links; track $index) {
+    <a
+      mat-tab-link
+      [routerLink]="link.path"
+      routerLinkActive
+      #rla="routerLinkActive"
+      [active]="rla.isActive"
+    >
+      {{ link.label }}
+    </a>
+  }
 </nav>
 
-<router-outlet></router-outlet>
+<mat-tab-nav-panel #tabPanel>
+  <router-outlet></router-outlet>
+</mat-tab-nav-panel>
