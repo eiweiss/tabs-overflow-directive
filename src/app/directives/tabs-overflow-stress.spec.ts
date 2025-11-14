@@ -5,7 +5,6 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTabNavBarHarness } from '@angular/material/tabs/testing';
 import { HarnessLoader } from '@angular/cdk/testing';
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
-import { RouterTestingModule } from '@angular/router/testing';
 import { TabsOverflowMenuDirective } from './tabs-overflow-menu.directive';
 import { TabsOverflowDirective } from './tabs-overflow.directive';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -14,7 +13,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
   template: `
     <nav mat-tab-nav-bar [tabPanel]="tabPanel" appTabsOverflowMenu>
       @for (link of links; track $index) {
-        <a mat-tab-link [routerLink]="link.path" [active]="link.active">
+        <a mat-tab-link href="javascript:void(0)" [active]="link.active" (click)="onTabClick($event, link)">
           {{ link.label }}
         </a>
       }
@@ -25,17 +24,23 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 })
 class TestHostComponent {
   links = [
-    { path: '/tab0', label: 'Tab 0', active: false },
-    { path: '/tab1', label: 'Tab 1', active: false },
-    { path: '/tab2', label: 'Tab 2', active: false },
-    { path: '/tab3', label: 'Tab 3', active: false },
-    { path: '/tab4', label: 'Tab 4', active: false },
-    { path: '/tab5', label: 'Tab 5', active: false },
-    { path: '/tab6', label: 'Tab 6', active: false },
-    { path: '/tab7', label: 'Tab 7', active: false },
-    { path: '/tab8', label: 'Tab 8', active: false },
-    { path: '/tab9', label: 'Tab 9', active: false },
+    { label: 'Tab 0', active: false },
+    { label: 'Tab 1', active: false },
+    { label: 'Tab 2', active: false },
+    { label: 'Tab 3', active: false },
+    { label: 'Tab 4', active: false },
+    { label: 'Tab 5', active: false },
+    { label: 'Tab 6', active: false },
+    { label: 'Tab 7', active: false },
+    { label: 'Tab 8', active: false },
+    { label: 'Tab 9', active: false },
   ];
+
+  onTabClick(event: Event, link: any): void {
+    event.preventDefault();
+    this.links.forEach(l => l.active = false);
+    link.active = true;
+  }
 }
 
 describe('TabsOverflow Stress Tests - Deep Nesting', () => {
@@ -47,13 +52,17 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   let loader: HarnessLoader;
   let tabNavBarHarness: MatTabNavBarHarness;
   let navElement: HTMLElement;
+  let originalTimeout: number;
 
   beforeEach(async () => {
+    // Save original timeout and increase it for stress tests
+    originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = 30000;
+
     await TestBed.configureTestingModule({
       declarations: [TestHostComponent],
       imports: [
         MatTabsModule,
-        RouterTestingModule,
         NoopAnimationsModule,
         TabsOverflowMenuDirective,
       ],
@@ -71,6 +80,15 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
     fixture.detectChanges();
 
     tabNavBarHarness = await loader.getHarness(MatTabNavBarHarness);
+
+    // Wait longer for directive to fully initialize
+    await new Promise(resolve => setTimeout(resolve, 600));
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    // Restore original timeout
+    jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
   function validateIndexConsistency(context: string): void {
@@ -110,14 +128,14 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
     });
   }
 
-  async function resize(width: number, delay: number = 200): Promise<void> {
+  async function resize(width: number, delay: number = 400): Promise<void> {
     navElement.style.width = `${width}px`;
     window.dispatchEvent(new Event('resize'));
     await new Promise(resolve => setTimeout(resolve, delay));
     fixture.detectChanges();
   }
 
-  async function selectHiddenTab(tabIndex?: number, delay: number = 200): Promise<void> {
+  async function selectHiddenTab(tabIndex?: number, delay: number = 350): Promise<void> {
     const hiddenTabs = overflowDirective.hiddenTabs();
     if (hiddenTabs.length > 0) {
       const indexToSelect = tabIndex !== undefined
@@ -133,7 +151,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   }
 
   it('STRESS: 3-level nested operations', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
     validateIndexConsistency('Initial');
 
     await resize(250);
@@ -156,7 +173,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: 5-level nested resize/select cycle', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     const operations = [
       { width: 200, select: true },
@@ -181,7 +197,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Select specific tab indices in sequence', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
     navElement.style.width = '250px';
     await resize(250);
 
@@ -203,7 +218,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Rapid resize oscillation', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     const widths = [250, 500, 300, 600, 280, 550, 320, 700, 250, 800];
 
@@ -219,7 +233,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Small -> Select -> Smaller -> Select -> Tiny -> Select', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     await resize(400);
     validateIndexConsistency('Resize 400');
@@ -247,7 +260,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Large -> Small with multiple selections', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     await resize(800);
     validateIndexConsistency('Start large');
@@ -275,7 +287,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Edge case - select last tab repeatedly', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
     await resize(250);
 
     for (let i = 0; i < 5; i++) {
@@ -289,7 +300,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Edge case - select first tab repeatedly', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
     await resize(250);
 
     for (let i = 0; i < 5; i++) {
@@ -303,7 +313,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Alternating resize and select with validation', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     const pattern = [
       { width: 250, selectCount: 1 },
@@ -329,7 +338,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: 10-deep nested operations', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     // Level 1
     await resize(250);
@@ -439,7 +447,6 @@ describe('TabsOverflow Stress Tests - Deep Nesting', () => {
   });
 
   it('STRESS: Verify tab element visibility matches directive state', async () => {
-    await new Promise(resolve => setTimeout(resolve, 500));
     await resize(250);
 
     const visibleTabs = overflowDirective.visibleTabs();

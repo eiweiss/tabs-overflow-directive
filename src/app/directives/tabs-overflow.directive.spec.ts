@@ -5,7 +5,6 @@ import { MatTabsModule, MatTabNav } from '@angular/material/tabs';
 import { MatTabNavBarHarness } from '@angular/material/tabs/testing';
 import { HarnessLoader } from '@angular/cdk/testing';
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
-import { RouterTestingModule } from '@angular/router/testing';
 import { TabsOverflowDirective } from './tabs-overflow.directive';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 
@@ -13,7 +12,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
   template: `
     <nav mat-tab-nav-bar [tabPanel]="tabPanel" appTabsOverflow #overflow="tabsOverflow">
       @for (link of links; track $index) {
-        <a mat-tab-link [routerLink]="link.path" [active]="link.active">
+        <a mat-tab-link href="javascript:void(0)" [active]="link.active" (click)="onTabClick($event, link)">
           {{ link.label }}
         </a>
       }
@@ -24,12 +23,18 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 })
 class TestHostComponent {
   links = [
-    { path: '/tab1', label: 'Tab 1', active: false },
-    { path: '/tab2', label: 'Tab 2', active: false },
-    { path: '/tab3', label: 'Tab 3', active: false },
-    { path: '/tab4', label: 'Tab 4', active: false },
-    { path: '/tab5', label: 'Tab 5', active: false },
+    { label: 'Tab 1', active: false },
+    { label: 'Tab 2', active: false },
+    { label: 'Tab 3', active: false },
+    { label: 'Tab 4', active: false },
+    { label: 'Tab 5', active: false },
   ];
+
+  onTabClick(event: Event, link: any): void {
+    event.preventDefault();
+    this.links.forEach(l => l.active = false);
+    link.active = true;
+  }
 }
 
 describe('TabsOverflowDirective', () => {
@@ -45,7 +50,6 @@ describe('TabsOverflowDirective', () => {
       declarations: [TestHostComponent],
       imports: [
         MatTabsModule,
-        RouterTestingModule,
         NoopAnimationsModule,
         TabsOverflowDirective,
       ],
