@@ -2,6 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, DebugElement } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { MatTabsModule, MatTabNav } from '@angular/material/tabs';
+import { MatTabNavBarHarness } from '@angular/material/tabs/testing';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { RouterTestingModule } from '@angular/router/testing';
 import { TabsOverflowDirective } from './tabs-overflow.directive';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -34,6 +37,8 @@ describe('TabsOverflowDirective', () => {
   let fixture: ComponentFixture<TestHostComponent>;
   let directiveElement: DebugElement;
   let directive: TabsOverflowDirective;
+  let loader: HarnessLoader;
+  let tabNavBarHarness: MatTabNavBarHarness;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -52,21 +57,34 @@ describe('TabsOverflowDirective', () => {
       By.directive(TabsOverflowDirective)
     );
     directive = directiveElement.injector.get(TabsOverflowDirective);
+    loader = TestbedHarnessEnvironment.loader(fixture);
     fixture.detectChanges();
+
+    // Get the tab nav bar harness
+    tabNavBarHarness = await loader.getHarness(MatTabNavBarHarness);
   });
 
   it('should create directive', () => {
     expect(directive).toBeTruthy();
   });
 
-  it('should initialize with all tabs visible when enough space', (done) => {
-    // Wait for initialization
-    setTimeout(() => {
-      fixture.detectChanges();
-      expect(directive.allTabs().length).toBe(5);
-      expect(directive.hasOverflow()).toBeDefined();
-      done();
-    }, 500);
+  it('should create tab nav bar harness', async () => {
+    expect(tabNavBarHarness).toBeTruthy();
+  });
+
+  it('should have correct number of tab links using harness', async () => {
+    const links = await tabNavBarHarness.getLinks();
+    expect(links.length).toBe(5);
+  });
+
+  it('should initialize with all tabs visible when enough space', async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    fixture.detectChanges();
+
+    const links = await tabNavBarHarness.getLinks();
+    expect(directive.allTabs().length).toBe(5);
+    expect(links.length).toBe(5);
+    expect(directive.hasOverflow()).toBeDefined();
   });
 
   it('should detect overflow when container is too small', (done) => {
@@ -95,20 +113,34 @@ describe('TabsOverflowDirective', () => {
     }, 500);
   });
 
-  it('should maintain correct tab indices in visibleTabs', (done) => {
-    setTimeout(() => {
-      fixture.detectChanges();
-      const visibleTabs = directive.visibleTabs();
-      const allTabs = directive.allTabs();
+  it('should maintain correct tab indices in visibleTabs', async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    fixture.detectChanges();
 
-      // Check that indices match actual elements
-      visibleTabs.forEach((tabInfo) => {
-        const expectedTab = allTabs.find((t) => t.index === tabInfo.index);
-        expect(expectedTab).toBeTruthy();
-        expect(expectedTab?.label).toBe(tabInfo.label);
-      });
-      done();
-    }, 500);
+    const links = await tabNavBarHarness.getLinks();
+    const visibleTabs = directive.visibleTabs();
+    const allTabs = directive.allTabs();
+
+    // Check that indices match actual elements
+    visibleTabs.forEach((tabInfo) => {
+      const expectedTab = allTabs.find((t) => t.index === tabInfo.index);
+      expect(expectedTab).toBeTruthy();
+      expect(expectedTab?.label).toBe(tabInfo.label);
+    });
+
+    // Verify using harness
+    expect(links.length).toBeGreaterThan(0);
+  });
+
+  it('should get correct tab labels using harness', async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const links = await tabNavBarHarness.getLinks();
+    const labels = await Promise.all(links.map(link => link.getLabel()));
+
+    expect(labels).toContain('Tab 1');
+    expect(labels).toContain('Tab 2');
+    expect(labels).toContain('Tab 3');
   });
 
   it('should handle resize to larger container', (done) => {

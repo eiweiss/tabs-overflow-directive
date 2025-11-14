@@ -2,6 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, DebugElement } from '@angular/core';
 import { By } from '@angular/platform-browser';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTabNavBarHarness } from '@angular/material/tabs/testing';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { RouterTestingModule } from '@angular/router/testing';
 import { TabsOverflowMenuDirective } from './tabs-overflow-menu.directive';
 import { TabsOverflowDirective } from './tabs-overflow.directive';
@@ -39,6 +42,8 @@ describe('TabsOverflowMenuDirective', () => {
   let directiveElement: DebugElement;
   let menuDirective: TabsOverflowMenuDirective;
   let overflowDirective: TabsOverflowDirective;
+  let loader: HarnessLoader;
+  let tabNavBarHarness: MatTabNavBarHarness;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -58,7 +63,11 @@ describe('TabsOverflowMenuDirective', () => {
     );
     menuDirective = directiveElement.injector.get(TabsOverflowMenuDirective);
     overflowDirective = directiveElement.injector.get(TabsOverflowDirective);
+    loader = TestbedHarnessEnvironment.loader(fixture);
     fixture.detectChanges();
+
+    // Get the tab nav bar harness
+    tabNavBarHarness = await loader.getHarness(MatTabNavBarHarness);
   });
 
   it('should create menu directive', () => {
@@ -67,6 +76,22 @@ describe('TabsOverflowMenuDirective', () => {
 
   it('should have access to TabsOverflowDirective through composition', () => {
     expect(overflowDirective).toBeTruthy();
+  });
+
+  it('should have correct number of tab links using harness', async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const links = await tabNavBarHarness.getLinks();
+    expect(links.length).toBe(8);
+  });
+
+  it('should verify tab labels match using harness', async () => {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const links = await tabNavBarHarness.getLinks();
+    const labels = await Promise.all(links.map(link => link.getLabel()));
+
+    expect(labels).toContain('Tab 1');
+    expect(labels).toContain('Tab 8');
+    expect(labels.length).toBe(8);
   });
 
   it('should show overflow menu when tabs overflow', (done) => {
