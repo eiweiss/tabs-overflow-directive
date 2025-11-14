@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { OverflowMenuComponent } from './overflow-menu.component';
 import { CommonModule } from '@angular/common';
-import { CdkMenuModule } from '@angular/material-experimental/menu';
+import { CdkMenuModule } from '@angular/cdk/menu';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { MatIconModule } from '@angular/material/icon';
 
