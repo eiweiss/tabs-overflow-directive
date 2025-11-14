@@ -414,14 +414,22 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       return;
     }
 
+    // Wait if currently updating to prevent race condition
+    if (this.isUpdating) {
+      setTimeout(() => this.makeTabVisible(selectedIndex), 50);
+      return;
+    }
+
     // Remove the last (rightmost) visible tab and add the selected tab to the right
     // This maintains left-to-right order and keeps leftmost tabs stable
     if (this.visibleTabIndices.length > 0) {
       this.visibleTabIndices.pop(); // Remove from right side instead of left
     }
 
-    // Add the selected tab to the right
+    // Add the selected tab to the right, maintaining sorted order
     this.visibleTabIndices.push(selectedIndex);
+    // Sort to maintain ascending order
+    this.visibleTabIndices.sort((a, b) => a - b);
 
     // Reset scroll position before re-detection
     this.resetScrollPosition();
