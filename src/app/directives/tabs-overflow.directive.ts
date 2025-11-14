@@ -149,23 +149,23 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     const resize$ = fromEvent(window, 'resize').pipe(
       debounceTime(150),
       startWith(null),
-      map(() => 'resize' as const)
+      map(() => ({ type: 'resize' as const }))
     );
 
     // Reactive stream for mutations
     const domMutation$ = this.mutation$.pipe(
       debounceTime(200),
-      map(() => 'mutation' as const)
+      map(() => ({ type: 'mutation' as const }))
     );
 
-    // Reactive stream for tab visibility requests
+    // Reactive stream for tab visibility requests - handle separately
     const tabVisibilityRequest$ = this.makeTabVisibleRequest$.pipe(
-      tap(selectedIndex => this.handleTabVisibilityRequest(selectedIndex)),
-      map(() => 'visibility' as const)
+      switchMap(selectedIndex => this.handleTabVisibilityRequestReactive(selectedIndex)),
+      tap(state => this.updateState(state))
     );
 
-    // Combine all event streams into a single pipeline
-    merge(resize$, domMutation$, tabVisibilityRequest$)
+    // Combine resize and mutation streams (not visibility requests)
+    merge(resize$, domMutation$)
       .pipe(
         debounceTime(150),
         // Use switchMap to cancel previous detection if new event arrives
@@ -181,6 +181,9 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       .subscribe(state => {
         this.updateState(state);
       });
+
+    // Subscribe to visibility requests separately
+    tabVisibilityRequest$.pipe(takeUntil(this.destroy$)).subscribe();
   }
 
   private setupMutationObserver(): void {
@@ -440,15 +443,23 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Handle tab visibility request - called from reactive stream
+   * Handle tab visibility request reactively - returns Observable of new state
+   * This applies the user's selection directly without recalculating fit
    */
-  private handleTabVisibilityRequest(selectedIndex: number): void {
+  private handleTabVisibilityRequestReactive(selectedIndex: number): Observable<{
+    hasOverflow: boolean;
+    allTabs: TabInfo[];
+    visibleTabs: TabInfo[];
+    hiddenTabs: TabInfo[];
+  }> {
     const currentIndices = this.visibleTabIndices$.value;
 
-    // If the tab is already visible, just navigate
+    // If the tab is already visible, just navigate and return current state
     if (currentIndices.includes(selectedIndex)) {
       this.navigateToTab(selectedIndex);
-      return;
+      return timer(0).pipe(
+        map(() => this.detectOverflowSync())
+      );
     }
 
     // Calculate new visible indices
@@ -462,10 +473,18 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     // Update the behavior subject
     this.visibleTabIndices$.next(newIndices);
 
-    // Navigate to the selected tab after a delay
-    timer(50)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => this.navigateToTab(selectedIndex));
+    // Apply the new indices and navigate
+    return timer(0).pipe(
+      map(() => {
+        this.resetScrollPosition();
+        return this.detectOverflowSync();
+      }),
+      delay(10),
+      tap(() => {
+        this.resetScrollPosition();
+        this.navigateToTab(selectedIndex);
+      })
+    );
   }
 
   /**
