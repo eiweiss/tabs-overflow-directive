@@ -7,13 +7,17 @@ import {
   signal,
 } from '@angular/core';
 import { MatTabNav } from '@angular/material/tabs';
-import { Subject, fromEvent, merge, timer, Observable } from 'rxjs';
+import { Subject, fromEvent, merge, timer, Observable, BehaviorSubject } from 'rxjs';
 import {
   takeUntil,
   debounceTime,
   distinctUntilChanged,
   map,
   startWith,
+  switchMap,
+  tap,
+  delay,
+  filter,
 } from 'rxjs/operators';
 
 export interface TabInfo {
@@ -42,12 +46,15 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   readonly visibleTabs = signal<TabInfo[]>([]);
   readonly hiddenTabs = signal<TabInfo[]>([]);
 
+  // Reactive streams
+  private readonly makeTabVisibleRequest$ = new Subject<number>();
+  private readonly mutation$ = new Subject<void>();
+  private readonly visibleTabIndices$ = new BehaviorSubject<number[]>([]);
+
   private _tabHeaderElement: HTMLElement | null = null;
-  private visibleTabIndices: number[] = [];
   private maxVisibleTabs = 0;
   private isInitialized = false;
   private mutationObserver: MutationObserver | null = null;
-  private isUpdating = false;
 
   /**
    * Public getter for tab header element
@@ -135,83 +142,101 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   private setupOverflowDetection(): void {
     if (!this._tabHeaderElement) return;
 
-    // Observable for window resize
+    // Setup mutation observer
+    this.setupMutationObserver();
+
+    // Reactive stream for resize events
     const resize$ = fromEvent(window, 'resize').pipe(
       debounceTime(150),
-      startWith(null)
+      startWith(null),
+      map(() => 'resize' as const)
     );
 
-    // Observable for DOM mutations (only for tab additions/removals, not our own changes)
-    const mutation$ = new Observable<MutationRecord[]>((observer) => {
-      this.mutationObserver = new MutationObserver((mutations) => {
-        // Ignore mutations while we're updating
-        if (this.isUpdating) return;
+    // Reactive stream for mutations
+    const domMutation$ = this.mutation$.pipe(
+      debounceTime(200),
+      map(() => 'mutation' as const)
+    );
 
-        // Only react to meaningful changes (tab additions/removals)
-        const hasRelevantChanges = mutations.some(mutation => {
-          return mutation.type === 'childList' &&
-                 Array.from(mutation.addedNodes).some(node =>
-                   (node as HTMLElement).classList?.contains('mat-mdc-tab-link') ||
-                   (node as HTMLElement).classList?.contains('mat-tab-link')
-                 ) ||
-                 Array.from(mutation.removedNodes).some(node =>
-                   (node as HTMLElement).classList?.contains('mat-mdc-tab-link') ||
-                   (node as HTMLElement).classList?.contains('mat-tab-link')
-                 );
-        });
+    // Reactive stream for tab visibility requests
+    const tabVisibilityRequest$ = this.makeTabVisibleRequest$.pipe(
+      tap(selectedIndex => this.handleTabVisibilityRequest(selectedIndex)),
+      map(() => 'visibility' as const)
+    );
 
-        if (hasRelevantChanges) {
-          observer.next(mutations);
-        }
-      });
-
-      this.mutationObserver.observe(this._tabHeaderElement!, {
-        childList: true,
-        subtree: false, // Only direct children, not subtree
-      });
-
-      return () => this.mutationObserver?.disconnect();
-    }).pipe(debounceTime(200));
-
-    // Combine streams (removed periodic timer to avoid constant updates)
-    merge(resize$, mutation$)
+    // Combine all event streams into a single pipeline
+    merge(resize$, domMutation$, tabVisibilityRequest$)
       .pipe(
         debounceTime(150),
-        map(() => {
-          if (this.isUpdating) return null;
-          // Always reset scroll position before detection
-          this.resetScrollPosition();
-          return this.detectOverflow();
-        }),
+        // Use switchMap to cancel previous detection if new event arrives
+        switchMap(() => this.detectOverflowReactive()),
         distinctUntilChanged(
-          (prev, curr) => {
-            if (!prev || !curr) return true;
-            return prev.hasOverflow === curr.hasOverflow &&
-              prev.allTabs.length === curr.allTabs.length &&
-              prev.visibleTabs.length === curr.visibleTabs.length;
-          }
+          (prev, curr) =>
+            prev.hasOverflow === curr.hasOverflow &&
+            prev.allTabs.length === curr.allTabs.length &&
+            prev.visibleTabs.length === curr.visibleTabs.length
         ),
         takeUntil(this.destroy$)
       )
-      .subscribe((state) => {
-        if (!state) return;
+      .subscribe(state => {
         this.updateState(state);
-        // Reset scroll position after state update to ensure no scrolling
-        setTimeout(() => this.resetScrollPosition(), 10);
       });
   }
 
-  private detectOverflow() {
-    // Skip if we're currently updating to prevent race conditions
-    if (this.isUpdating) {
-      return {
-        hasOverflow: this.hasOverflow(),
-        allTabs: this.allTabs(),
-        visibleTabs: this.visibleTabs(),
-        hiddenTabs: this.hiddenTabs(),
-      };
-    }
+  private setupMutationObserver(): void {
+    if (!this._tabHeaderElement) return;
 
+    this.mutationObserver = new MutationObserver(mutations => {
+      // Only react to meaningful changes (tab additions/removals)
+      const hasRelevantChanges = mutations.some(
+        mutation =>
+          mutation.type === 'childList' &&
+          (Array.from(mutation.addedNodes).some(
+            node =>
+              (node as HTMLElement).classList?.contains('mat-mdc-tab-link') ||
+              (node as HTMLElement).classList?.contains('mat-tab-link')
+          ) ||
+            Array.from(mutation.removedNodes).some(
+              node =>
+                (node as HTMLElement).classList?.contains('mat-mdc-tab-link') ||
+                (node as HTMLElement).classList?.contains('mat-tab-link')
+            ))
+      );
+
+      if (hasRelevantChanges) {
+        this.mutation$.next();
+      }
+    });
+
+    this.mutationObserver.observe(this._tabHeaderElement, {
+      childList: true,
+      subtree: false,
+    });
+  }
+
+  /**
+   * Reactive version of overflow detection that returns an Observable
+   */
+  private detectOverflowReactive(): Observable<{
+    hasOverflow: boolean;
+    allTabs: TabInfo[];
+    visibleTabs: TabInfo[];
+    hiddenTabs: TabInfo[];
+  }> {
+    return timer(0).pipe(
+      map(() => {
+        this.resetScrollPosition();
+        return this.detectOverflowSync();
+      }),
+      delay(10),
+      tap(() => this.resetScrollPosition())
+    );
+  }
+
+  /**
+   * Synchronous overflow detection logic - pure function
+   */
+  private detectOverflowSync() {
     if (!this._tabHeaderElement) {
       return {
         hasOverflow: false,
@@ -271,6 +296,9 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     const menuButtonWidth = 56; // Always reserve space for overflow menu button
     const availableWidth = containerWidth - menuButtonWidth;
 
+    // Get current visible indices from reactive stream
+    let visibleIndices = this.visibleTabIndices$.value;
+
     // On first run, ensure all tabs are clickable and visible for measurement
     if (!this.isInitialized) {
       tabElements.forEach(el => {
@@ -294,7 +322,8 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       }
 
       this.maxVisibleTabs = Math.max(1, fittingTabCount);
-      this.visibleTabIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
+      visibleIndices = allTabs.slice(0, this.maxVisibleTabs).map(t => t.index);
+      this.visibleTabIndices$.next(visibleIndices);
       this.isInitialized = true;
     } else {
       // After initialization: recalculate which tabs fit
@@ -307,7 +336,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
       });
 
       // Create a working copy of visible indices
-      let workingIndices = [...this.visibleTabIndices];
+      let workingIndices = [...visibleIndices];
 
       // Step 1: Remove tabs from the right if they don't fit
       while (workingIndices.length > 1) {
@@ -334,9 +363,9 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
         }
       }
 
-      // Update visible indices and max
-      this.visibleTabIndices = workingIndices;
-      this.maxVisibleTabs = Math.max(1, this.visibleTabIndices.length);
+      // Update visible indices
+      visibleIndices = workingIndices;
+      this.maxVisibleTabs = Math.max(1, visibleIndices.length);
     }
 
     const hasOverflow = allTabs.length > this.maxVisibleTabs;
@@ -346,7 +375,7 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
     const hiddenTabs: TabInfo[] = [];
 
     allTabs.forEach((tabInfo) => {
-      const shouldBeVisible = this.visibleTabIndices.includes(tabInfo.index);
+      const shouldBeVisible = visibleIndices.includes(tabInfo.index);
 
       if (shouldBeVisible && visibleTabs.length < this.maxVisibleTabs) {
         visibleTabs.push(tabInfo);
@@ -386,63 +415,57 @@ export class TabsOverflowDirective implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Update state with isUpdating flag to prevent mutation loop
+   * Update state - simplified without imperative flags
    */
-  private updateState(state: { hasOverflow: boolean; allTabs: TabInfo[]; visibleTabs: TabInfo[]; hiddenTabs: TabInfo[] }): void {
-    this.isUpdating = true;
-    try {
-      this.hasOverflow.set(state.hasOverflow);
-      this.allTabs.set(state.allTabs);
-      this.visibleTabs.set(state.visibleTabs);
-      this.hiddenTabs.set(state.hiddenTabs);
-    } finally {
-      // Reset flag after a delay to allow DOM to settle and prevent race conditions
-      setTimeout(() => {
-        this.isUpdating = false;
-      }, 150);
-    }
+  private updateState(state: {
+    hasOverflow: boolean;
+    allTabs: TabInfo[];
+    visibleTabs: TabInfo[];
+    hiddenTabs: TabInfo[];
+  }): void {
+    this.hasOverflow.set(state.hasOverflow);
+    this.allTabs.set(state.allTabs);
+    this.visibleTabs.set(state.visibleTabs);
+    this.hiddenTabs.set(state.hiddenTabs);
+    this.visibleTabIndices$.next(state.visibleTabs.map(t => t.index));
   }
 
   /**
    * Make a tab visible when selected from dropdown
-   * Removes the rightmost visible tab and adds the selected tab to the right
+   * Reactive approach - emit to subject instead of imperative updates
    */
   makeTabVisible(selectedIndex: number): void {
+    // Emit to reactive stream which will handle the update
+    this.makeTabVisibleRequest$.next(selectedIndex);
+  }
+
+  /**
+   * Handle tab visibility request - called from reactive stream
+   */
+  private handleTabVisibilityRequest(selectedIndex: number): void {
+    const currentIndices = this.visibleTabIndices$.value;
+
     // If the tab is already visible, just navigate
-    if (this.visibleTabIndices.includes(selectedIndex)) {
+    if (currentIndices.includes(selectedIndex)) {
       this.navigateToTab(selectedIndex);
       return;
     }
 
-    // Wait if currently updating to prevent race condition
-    if (this.isUpdating) {
-      setTimeout(() => this.makeTabVisible(selectedIndex), 50);
-      return;
+    // Calculate new visible indices
+    const newIndices = [...currentIndices];
+    if (newIndices.length > 0) {
+      newIndices.pop(); // Remove rightmost tab
     }
+    newIndices.push(selectedIndex);
+    newIndices.sort((a, b) => a - b);
 
-    // Remove the last (rightmost) visible tab and add the selected tab to the right
-    // This maintains left-to-right order and keeps leftmost tabs stable
-    if (this.visibleTabIndices.length > 0) {
-      this.visibleTabIndices.pop(); // Remove from right side instead of left
-    }
+    // Update the behavior subject
+    this.visibleTabIndices$.next(newIndices);
 
-    // Add the selected tab to the right, maintaining sorted order
-    this.visibleTabIndices.push(selectedIndex);
-    // Sort to maintain ascending order
-    this.visibleTabIndices.sort((a, b) => a - b);
-
-    // Reset scroll position before re-detection
-    this.resetScrollPosition();
-
-    // Trigger re-detection to apply visibility changes and validate fit
-    const state = this.detectOverflow();
-    this.updateState(state);
-
-    // Navigate to the selected tab
-    this.navigateToTab(selectedIndex);
-
-    // Final scroll position reset after everything settles
-    setTimeout(() => this.resetScrollPosition(), 100);
+    // Navigate to the selected tab after a delay
+    timer(50)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.navigateToTab(selectedIndex));
   }
 
   /**
