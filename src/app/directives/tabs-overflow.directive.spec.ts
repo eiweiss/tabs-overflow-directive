@@ -12,7 +12,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
   template: `
     <nav mat-tab-nav-bar [tabPanel]="tabPanel" appTabsOverflow #overflow="tabsOverflow">
       @for (link of links; track $index) {
-        <a mat-tab-link [active]="link.active" (click)="onTabClick(link)">
+        <a mat-tab-link href="javascript:void(0)" [active]="link.active" (click)="onTabClick($event, link)">
           {{ link.label }}
         </a>
       }
@@ -30,7 +30,8 @@ class TestHostComponent {
     { label: 'Tab 5', active: false },
   ];
 
-  onTabClick(link: any): void {
+  onTabClick(event: Event, link: any): void {
+    event.preventDefault();
     this.links.forEach(l => l.active = false);
     link.active = true;
   }
